@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "emulators/emu",
+    "emulators/gb",
+    "frontends/pc",
+]
+resolver = "2"
