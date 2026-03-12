@@ -3,5 +3,6 @@ members = [
     "emulators/emu",
     "emulators/gb",
     "frontends/pc",
+    "tools/instruction-codegen",
 ]
 resolver = "2"
