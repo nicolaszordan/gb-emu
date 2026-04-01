@@ -58,8 +58,8 @@ pub fn generate_code(input: &str) -> Result<String, Box<dyn Error>> {
     output.push_str("// Auto-generated file - DO NOT EDIT\n");
     output.push_str("// Use `tools/instruction-codegen` to edit\n");
 
-    output.push_str("\n/// Auto-generated trait containing all GameBoy CPU instructions\n");
-    output.push_str(&generate_trait(&instructions));
+    //output.push_str("\n/// Auto-generated trait containing all GameBoy CPU instructions\n");
+    //output.push_str(&generate_trait(&instructions));
     output.push_str("\n/// Metadata for a single CPU instruction\n");
     output.push_str(&generate_instruction_metadata_struct());
     output.push_str(&generate_instruction_tables(&instructions));
@@ -125,9 +125,9 @@ fn generate_trait_method_operand_name(operand: &Operand) -> String {
 
     // For HL+/HL- instructions, append inc/dec to the operand name
     if operand.increment.unwrap_or(false) {
-        operand_name.push_str("inc");
+        operand_name.push_str("i");
     } else if operand.decrement.unwrap_or(false) {
-        operand_name.push_str("dec");
+        operand_name.push_str("d");
     }
 
     operand_name
@@ -157,8 +157,8 @@ fn generate_instruction_metadata_struct() -> String {
     output.push_str("    pub mnemonic: &'static str,\n");
     output.push_str("    pub opcode: u8,\n");
     output.push_str("    pub bytes: u8,\n");
-    output.push_str("    pub cycles: &'static [u8],\n");
-    output.push_str(&format!("    pub execute: fn(&mut dyn {}),\n", TRAIT_NAME));
+    output.push_str("    pub cycles: u8,\n");
+    //output.push_str(&format!("    pub execute: fn(&mut dyn {}),\n", TRAIT_NAME));
     output.push_str("}\n");
 
     output
@@ -197,18 +197,19 @@ fn generate_instruction_table(
 }
 
 fn generate_instruction_table_entry(instr: &Instruction, opcode: u8) -> String {
-    let method_name = generate_trait_method_name(instr);
-    let cycles_str = instr
-        .cycles
-        .iter()
-        .map(|c| c.to_string())
-        .collect::<Vec<_>>()
-        .join(", ");
+    // let method_name = generate_trait_method_name(instr);
+    let cycles = instr.cycles.iter().min().unwrap();
 
-    format!(
-        "    InstructionMeta {{\n        mnemonic: \"{}\",\n        opcode: 0x{:02X},\n        bytes: {},\n        cycles: &[{}],\n        execute: |cpu| cpu.{}(),\n    }},\n",
-        instr.mnemonic, opcode, instr.bytes, cycles_str, method_name
-    )
+    let mut output = String::new();
+
+    output.push_str("    InstructionMeta {\n");
+    output.push_str(&format!("        mnemonic: \"{}\",\n", instr.mnemonic));
+    output.push_str(&format!("        opcode: 0x{:02X},\n", opcode));
+    output.push_str(&format!("        bytes: {},\n", instr.bytes));
+    output.push_str(&format!("        cycles: {},\n", cycles));
+    output.push_str("    },\n");
+
+    output
 }
 
 #[cfg(test)]
@@ -242,7 +243,7 @@ mod test {
             decrement: None,
             immediate: false,
         };
-        assert_eq!(generate_trait_method_operand_name(&operand), "_mHLinc");
+        assert_eq!(generate_trait_method_operand_name(&operand), "_mHLi");
 
         let operand = Operand {
             name: "HL".to_string(),
@@ -251,7 +252,7 @@ mod test {
             decrement: Some(true),
             immediate: false,
         };
-        assert_eq!(generate_trait_method_operand_name(&operand), "_mHLdec");
+        assert_eq!(generate_trait_method_operand_name(&operand), "_mHLd");
 
         let operand = Operand {
             name: "$FF00".to_string(),
@@ -320,7 +321,7 @@ mod test {
         };
 
         let method_name = generate_trait_method_name(&instr);
-        assert_eq!(method_name, "ld_A_mHLinc");
+        assert_eq!(method_name, "ld_A_mHLi");
     }
 
     #[test]
@@ -413,8 +414,7 @@ pub trait InstructionHandler {
         mnemonic: "LD",
         opcode: 0x01,
         bytes: 3,
-        cycles: &[12],
-        execute: |cpu| cpu.ld_mBC_n16(),
+        cycles: 12,
     },
 "#;
 
@@ -429,7 +429,7 @@ pub trait InstructionHandler {
             Instruction {
                 mnemonic: "NOP".to_string(),
                 bytes: 1,
-                cycles: vec![4],
+                cycles: vec![8, 4],
                 operands: vec![],
                 immediate: false,
                 flags: Flags {
@@ -445,7 +445,7 @@ pub trait InstructionHandler {
             Instruction {
                 mnemonic: "LD".to_string(),
                 bytes: 3,
-                cycles: vec![12],
+                cycles: vec![12, 16],
                 operands: vec![
                     Operand {
                         name: "BC".to_string(),
@@ -482,15 +482,13 @@ pub const TEST_TABLE: [InstructionMeta; 2] = [
         mnemonic: "NOP",
         opcode: 0x00,
         bytes: 1,
-        cycles: &[4],
-        execute: |cpu| cpu.nop(),
+        cycles: 4,
     },
     InstructionMeta {
         mnemonic: "LD",
         opcode: 0x01,
         bytes: 3,
-        cycles: &[12],
-        execute: |cpu| cpu.ld_mBC_n16(),
+        cycles: 12,
     },
 ];
 "#;
