@@ -517,9 +517,9 @@ impl<'a> FlagsRegisterViewMut<'a> {
     /// regs.flags_mut().zero().set(false);
     /// assert!(!regs.flags().zero());
     /// ```
-    pub fn zero(self) -> FlagRegisterViewMut<'a> {
+    pub fn zero(&mut self) -> FlagRegisterViewMut<'_> {
         FlagRegisterViewMut {
-            flags_register: self.flags_register,
+            flags_register: &mut self.flags_register,
             offset: ZERO_FLAG_OFFSET,
         }
     }
@@ -541,7 +541,7 @@ impl<'a> FlagsRegisterViewMut<'a> {
     /// regs.flags_mut().subtract().set(false);
     /// assert!(!regs.flags().subtract());
     /// ```
-    pub fn subtract(self) -> FlagRegisterViewMut<'a> {
+    pub fn subtract(&mut self) -> FlagRegisterViewMut<'_> {
         FlagRegisterViewMut {
             flags_register: self.flags_register,
             offset: SUBTRACT_FLAG_OFFSET,
@@ -565,7 +565,7 @@ impl<'a> FlagsRegisterViewMut<'a> {
     /// regs.flags_mut().half_carry().set(false);
     /// assert!(!regs.flags().half_carry());
     /// ```
-    pub fn half_carry(self) -> FlagRegisterViewMut<'a> {
+    pub fn half_carry(&mut self) -> FlagRegisterViewMut<'_> {
         FlagRegisterViewMut {
             flags_register: self.flags_register,
             offset: HALF_CARRY_FLAG_OFFSET,
@@ -589,7 +589,7 @@ impl<'a> FlagsRegisterViewMut<'a> {
     /// regs.flags_mut().carry().set(false);
     /// assert!(!regs.flags().carry());
     /// ```
-    pub fn carry(self) -> FlagRegisterViewMut<'a> {
+    pub fn carry(&mut self) -> FlagRegisterViewMut<'_> {
         FlagRegisterViewMut {
             flags_register: self.flags_register,
             offset: CARRY_FLAG_OFFSET,
@@ -645,6 +645,24 @@ impl<'a> FlagRegisterViewMut<'a> {
         } else {
             *self.flags_register &= !(1 << self.offset);
         };
+    }
+
+    /// Flips the flag bit this view was created for.
+    ///
+    /// This is a convenience method that toggles the target bit without needing
+    /// to read its current value first. It is equivalent to `set(!current_value)`
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// let mut regs = Registers::new(); // F = 0b0000_0000
+    /// regs.flags_mut().zero().flip();  // F = 0b1000_0000
+    /// assert!(regs.flags().zero());
+    /// regs.flags_mut().zero().flip();  // F = 0b0000_0000
+    /// assert!(!regs.flags().zero());
+    /// ```
+    pub fn flip(&mut self) {
+        *self.flags_register ^= 1 << self.offset;
     }
 }
 
@@ -720,5 +738,25 @@ mod tests {
         registers.flags_mut().carry().set(true);
 
         assert_eq!(registers.f, 0b0101_0000);
+    }
+
+    #[test]
+    fn flag_register_view_mut_flip() {
+        let mut registers = Registers::new();
+
+        registers.flags_mut().zero().flip();
+        assert_eq!(registers.f, 0b1000_0000);
+
+        registers.flags_mut().zero().flip();
+        assert_eq!(registers.f, 0b0000_0000);
+
+        registers.flags_mut().carry().flip();
+        assert_eq!(registers.f, 0b0001_0000);
+
+        registers.flags_mut().half_carry().flip();
+        assert_eq!(registers.f, 0b0011_0000);
+
+        registers.flags_mut().half_carry().flip();
+        assert_eq!(registers.f, 0b0001_0000);
     }
 }
