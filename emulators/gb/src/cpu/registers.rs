@@ -254,8 +254,8 @@ impl Registers {
     /// assert!(regs.flags().half_carry());
     /// assert!(!regs.flags().carry());
     /// ```
-    pub fn flags(&self) -> FlagsRegisterView<'_> {
-        FlagsRegisterView {
+    pub fn flags(&self) -> Flags<'_> {
+        Flags {
             flags_register: &self.f,
         }
     }
@@ -287,8 +287,8 @@ impl Registers {
     /// regs.flags_mut().carry().set(false);    // bit 4 → 0
     /// assert_eq!(regs.f, 0b1010_0000);
     /// ```
-    pub fn flags_mut(&mut self) -> FlagsRegisterViewMut<'_> {
-        FlagsRegisterViewMut {
+    pub fn flags_mut(&mut self) -> FlagsMut<'_> {
+        FlagsMut {
             flags_register: &mut self.f,
         }
     }
@@ -394,11 +394,11 @@ const CARRY_FLAG_OFFSET: u8 = 4;
 /// flag you want to inspect.
 ///
 /// This `struct` is created by the [`Registers::flags`] method.
-pub(crate) struct FlagsRegisterView<'a> {
+pub(crate) struct Flags<'a> {
     flags_register: &'a u8,
 }
 
-impl<'a> FlagsRegisterView<'a> {
+impl<'a> Flags<'a> {
     /// Returns `true` if the **Zero** flag (`Z`, bit 7) is set.
     ///
     /// The Zero flag is set by the CPU when an arithmetic or logical operation
@@ -495,11 +495,11 @@ impl<'a> FlagsRegisterView<'a> {
 /// [`Registers::flags_mut`] for each flag you want to modify.
 ///
 /// This `struct` is created by the [`Registers::flags_mut`] method.
-pub(crate) struct FlagsRegisterViewMut<'a> {
+pub(crate) struct FlagsMut<'a> {
     flags_register: &'a mut u8,
 }
 
-impl<'a> FlagsRegisterViewMut<'a> {
+impl<'a> FlagsMut<'a> {
     /// Returns a mutable handle targeting the **Zero** flag (`Z`, bit 7) of the F register.
     ///
     /// Call [`FlagRegisterViewMut::set`] on the returned value to set or clear

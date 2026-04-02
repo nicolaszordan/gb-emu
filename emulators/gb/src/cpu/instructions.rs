@@ -1,7 +1,7 @@
 pub mod meta;
-// pub mod condition;
+pub mod condition;
 
-// pub use condition::Condition;
+pub use condition::Condition;
 
 #[derive(Clone, Copy)]
 pub enum R8Param {
