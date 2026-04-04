@@ -14,12 +14,12 @@ impl<'a> StackControler<'a> {
     ///
     /// [`Self::sp`] is decremented and then `word` is written where
     /// [`Self::sp`] is currently pointing
-    /// 
+    ///
     /// # Example
     /// ```no_run
     /// let mut cpu = CPU::new();
     /// let mut ram = RAM::new();
-    /// 
+    ///
     /// cpu.sp = 0xFFFE;
     /// cpu.stack().push_word(&mut ram, 0x1234);
     /// assert_eq!(cpu.sp, 0xFFFC); // SP is decremented by 2 (word size) and points to the pushed value
@@ -38,6 +38,14 @@ impl<'a> StackControler<'a> {
         let value = bus.read_word(*self.sp);
         *self.sp = self.sp.wrapping_add(2); // word size
         value
+    }
+}
+
+#[cfg(test)]
+impl<'a> StackControler<'a> {
+    /// Peek at the last pushed value in the stack without modifying [`Self::sp`].
+    pub fn peek_word<M: MemoryBus>(&self, bus: &M) -> u16 {
+        bus.read_word(*self.sp)
     }
 }
 
@@ -63,15 +71,6 @@ mod tests {
 
         fn write(&mut self, address: u16, value: u8) {
             self.mem[address as usize] = value
-        }
-
-        fn read_word(&self, address: u16) -> u16 {
-            (self.read(address) as u16) << 8 | self.read(address + 1) as u16
-        }
-
-        fn write_word(&mut self, address: u16, value: u16) {
-            self.write(address, value as u8);
-            self.write(address + 1, (value >> 8) as u8);
         }
     }
 
@@ -106,7 +105,7 @@ mod tests {
 
         cpu.stack().push_word(&mut ram, 0x9ABC);
         assert_eq!(cpu.sp, 0xFFF8);
-        assert_eq!(ram.mem[0xFFF8..=0xFFFA], [0x9A, 0xBC]);
+        assert_eq!(ram.mem[0xFFF8..=0xFFF9], [0x9A, 0xBC]);
 
         assert_eq!(cpu.stack().pop_word(&mut ram), 0x9ABC);
         assert_eq!(cpu.sp, 0xFFFA);
@@ -122,5 +121,23 @@ mod tests {
 
         assert_eq!(cpu.stack().pop_word(&mut ram), 0x0000); // "invalid" pop!
         assert_eq!(cpu.sp, 0x0002);
+    }
+
+    #[test]
+    fn stack_peek() {
+        let mut cpu = CPU::new();
+        let mut ram = RAM::new();
+
+        cpu.sp = 0xFFFE;
+
+        cpu.stack().push_word(&mut ram, 0x1234);
+        assert_eq!(cpu.sp, 0xFFFC); // sp is dec after the push
+        assert_eq!(cpu.stack().peek_word(&mut ram), 0x1234);
+        assert_eq!(cpu.sp, 0xFFFC); // sp should be unchanged
+
+        cpu.stack().push_word(&mut ram, 0x5678);
+        assert_eq!(cpu.sp, 0xFFFA); // sp is dec again after the push
+        assert_eq!(cpu.stack().peek_word(&mut ram), 0x5678);
+        assert_eq!(cpu.sp, 0xFFFA); // sp should be unchanged
     }
 }
