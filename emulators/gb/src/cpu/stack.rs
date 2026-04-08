@@ -1,6 +1,6 @@
 use emu::MemoryBus;
 
-/// A helper struct to manage stack operations (push and pop).
+/// A helper struct to manage push and pop stack operations.
 pub struct StackControler<'a> {
     sp: &'a mut u16,
 }
@@ -13,17 +13,21 @@ impl<'a> StackControler<'a> {
     /// Push `word` into the stack.
     ///
     /// [`Self::sp`] is decremented and then `word` is written where
-    /// [`Self::sp`] is currently pointing
+    /// [`Self::sp`] is now currently pointing.
+    /// 
+    /// Note that `word` is stored into the bus in little endian with the low
+    /// byte stored at [`Self::sp`] and the high byte at [`Self::sp`] + 1.
     ///
     /// # Example
     /// ```no_run
     /// let mut cpu = CPU::new();
-    /// let mut ram = RAM::new();
+    /// let mut bus = Bus::new();
     ///
     /// cpu.sp = 0xFFFE;
-    /// cpu.stack().push_word(&mut ram, 0x1234);
+    /// 
+    /// cpu.stack().push_word(&mut bus, 0x1234);
     /// assert_eq!(cpu.sp, 0xFFFC); // SP is decremented by 2 (word size) and points to the pushed value
-    /// assert_eq!(ram.mem[0xFFFC..=0xFFFD], [0x12, 0x34]);
+    /// assert_eq!(bus.mem[0xFFFC..=0xFFFD], [0x34, 0x12]); // note endian swap
     /// ```
     pub fn push_word<M: MemoryBus>(&mut self, bus: &mut M, word: u16) {
         *self.sp = self.sp.wrapping_sub(2); // word size
@@ -34,6 +38,26 @@ impl<'a> StackControler<'a> {
     ///
     /// The value is read and [`Self::sp`] is incremented to point to the next
     /// value.
+    /// 
+    /// Note that the 16bit word is assumed to be stored in little endian.
+    /// 
+    /// Note that this implementation doesn't prevent from popping from an empty
+    /// stack and will just circle around.
+    /// 
+    /// # Example
+    /// ```no_run
+    /// let mut cpu = CPU::new();
+    /// let mut bus = Bus::new();
+    /// 
+    /// cpu.sp = 0xFFFE;
+    /// 
+    /// cpu.stack().push_word(&mut bus, 0x1234);
+    /// assert_eq!(cpu.sp, 0xFFFC); // SP is decremented by word size and stack contains 0x1234.
+    /// 
+    /// let value = cpu.stack().pop_word(&bus);
+    /// assert_eq!(value, 0x1234);
+    /// assert_eq!(cpu.sp, 0xFFFE); // SP is incremented by word size and is back where it started.
+    /// ```
     pub fn pop_word<M: MemoryBus>(&mut self, bus: &M) -> u16 {
         let value = bus.read_word(*self.sp);
         *self.sp = self.sp.wrapping_add(2); // word size
@@ -97,15 +121,15 @@ mod tests {
 
         cpu.stack().push_word(&mut ram, 0x1234);
         assert_eq!(cpu.sp, 0xFFFC);
-        assert_eq!(ram.mem[0xFFFC..=0xFFFD], [0x12, 0x34]);
+        assert_eq!(ram.mem[0xFFFC..=0xFFFD], [0x34, 0x12]);
 
         cpu.stack().push_word(&mut ram, 0x5678);
         assert_eq!(cpu.sp, 0xFFFA);
-        assert_eq!(ram.mem[0xFFFA..=0xFFFB], [0x56, 0x78]);
+        assert_eq!(ram.mem[0xFFFA..=0xFFFB], [0x78, 0x56]);
 
         cpu.stack().push_word(&mut ram, 0x9ABC);
         assert_eq!(cpu.sp, 0xFFF8);
-        assert_eq!(ram.mem[0xFFF8..=0xFFF9], [0x9A, 0xBC]);
+        assert_eq!(ram.mem[0xFFF8..=0xFFF9], [0xBC, 0x9A]);
 
         assert_eq!(cpu.stack().pop_word(&mut ram), 0x9ABC);
         assert_eq!(cpu.sp, 0xFFFA);
