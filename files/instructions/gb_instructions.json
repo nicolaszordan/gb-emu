@@ -4686,7 +4686,7 @@
 			"mnemonic": "PREFIX",
 			"bytes": 1,
 			"cycles": [
-				4
+				0
 			],
 			"operands": [],
 			"immediate": true,

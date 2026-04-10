@@ -179,7 +179,7 @@ fn generate_instruction_table(
 
     for i in 0..instructions.len() {
         if i % 16 == 0 {
-            output.push_str(&format!("\n    // 0x{:02X}-0x{:02X}\n", i, i + 15));
+            output.push_str(&format!("    // 0x{:02X}-0x{:02X}\n", i, i + 15));
         }
 
         let opcode_key = format!("0x{:02X}", i);

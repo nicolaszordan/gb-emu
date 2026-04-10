@@ -1246,7 +1246,7 @@ pub const UNPREFIXED_INSTRUCTIONS: [InstructionMeta; 256] = [
         mnemonic: "PREFIX",
         opcode: 0xCB,
         bytes: 1,
-        cycles: 4,
+        cycles: 0,
     },
     InstructionMeta {
         mnemonic: "CALL",

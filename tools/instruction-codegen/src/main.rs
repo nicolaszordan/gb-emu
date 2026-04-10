@@ -1,3 +1,4 @@
+#[allow(dead_code)] // allowing dead_code while we wait for parameterized code-gen
 mod gb;
 
 use clap::Parser;
