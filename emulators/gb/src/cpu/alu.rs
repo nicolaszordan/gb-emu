@@ -1,7 +1,10 @@
+use emu::BitIndex;
+
 /// ALU instruction Flags.
 ///
 /// All ALU instructions return a value and the Flags that should be set by the
-/// CPU.
+/// CPU. Some ALU instructions do not change the status of specific flags this
+/// is the reason that each flag is an Option.
 #[derive(Debug, Default)]
 pub(crate) struct Flags {
     z: Option<bool>,
@@ -53,12 +56,6 @@ impl Flags {
         self.c
     }
 }
-
-/// An Index of a bit in a byte, used for bit manipulation instructions
-/// (eg. BIT, RES, SET).
-/// Values are expected to be in the range 0-7, where 0 corresponds to the least
-/// significant bit
-type BitIndex = u8; // 0-7
 
 /// Add two 8-bit values.
 ///
@@ -583,7 +580,7 @@ pub fn srl(value: u8) -> (u8, Flags) {
 /// - H : 1 (set).
 /// - C : **None**.
 pub fn bit(index: BitIndex, value: u8) -> Flags {
-    let is_bit_set = (value & (1 << index)) != 0;
+    let is_bit_set = (value & index.bit_mask()) != 0;
     Flags {
         z: Some(!is_bit_set), // flag is set if the tested bit is 0
         n: Some(false),
@@ -602,7 +599,7 @@ pub fn bit(index: BitIndex, value: u8) -> Flags {
 /// # Notes
 /// The `set` instructions **do not** affect any flag.
 pub fn set(index: BitIndex, value: u8) -> (u8, Flags) {
-    let result = value | (1 << index);
+    let result = value | index.bit_mask();
     (
         result,
         Flags {
@@ -625,7 +622,7 @@ pub fn set(index: BitIndex, value: u8) -> (u8, Flags) {
 /// # Notes
 /// The `res` instructions **do not** affect any flag.
 pub fn res(index: BitIndex, value: u8) -> (u8, Flags) {
-    let result = value & !(1 << index);
+    let result = value & !index.bit_mask();
     (
         result,
         // we still return the flags for consistency, but all are None as this instruction does not affect any flag
@@ -1511,7 +1508,7 @@ mod tests {
 
     #[test]
     fn bit_set_clears_zero() {
-        let flags = bit(3, 0b0000_1000); // bit 3 is 1 => zero flag = false
+        let flags = bit(3.into(), 0b0000_1000); // bit 3 is 1 => zero flag = false
         assert_eq!(flags.z(), Some(false));
         assert_eq!(flags.n(), Some(false));
         assert_eq!(flags.h(), Some(true));
@@ -1520,7 +1517,7 @@ mod tests {
 
     #[test]
     fn bit_clear_sets_zero() {
-        let flags = bit(3, 0b0000_0000); // bit 3 is 0 => zero flag = true
+        let flags = bit(3.into(), 0b0000_0000); // bit 3 is 0 => zero flag = true
         assert_eq!(flags.z(), Some(true));
         assert_eq!(flags.n(), Some(false));
         assert_eq!(flags.h(), Some(true));
@@ -1531,7 +1528,7 @@ mod tests {
 
     #[test]
     fn res_clears_bit() {
-        let (result, flags) = res(3, 0b0000_1111);
+        let (result, flags) = res(3.into(), 0b0000_1111);
         assert_eq!(result, 0b0000_0111);
         assert!(flags.z().is_none());
         assert!(flags.n().is_none());
@@ -1541,7 +1538,7 @@ mod tests {
 
     #[test]
     fn res_idempotent_when_already_clear() {
-        let (result, flags) = res(3, 0b0000_0000);
+        let (result, flags) = res(3.into(), 0b0000_0000);
         assert_eq!(result, 0b0000_0000);
         assert!(flags.z().is_none());
         assert!(flags.n().is_none());
@@ -1553,7 +1550,7 @@ mod tests {
 
     #[test]
     fn set_sets_bit() {
-        let (result, flags) = set(3, 0b0000_0000);
+        let (result, flags) = set(3.into(), 0b0000_0000);
         assert_eq!(result, 0b0000_1000);
         assert!(flags.z().is_none());
         assert!(flags.n().is_none());
@@ -1563,7 +1560,7 @@ mod tests {
 
     #[test]
     fn set_idempotent_when_already_set() {
-        let (result, flags) = set(3, 0b0000_1000);
+        let (result, flags) = set(3.into(), 0b0000_1000);
         assert_eq!(result, 0b0000_1000);
         assert!(flags.z().is_none());
         assert!(flags.n().is_none());
