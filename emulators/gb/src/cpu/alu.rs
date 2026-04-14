@@ -1,33 +1,33 @@
 /// ALU instruction Flags.
-/// 
+///
 /// All ALU instructions return a value and the Flags that should be set by the
 /// CPU.
 #[derive(Debug, Default)]
 pub(crate) struct Flags {
-    zero: Option<bool>,
-    subtract: Option<bool>,
-    half_carry: Option<bool>,
-    carry: Option<bool>,
+    z: Option<bool>,
+    n: Option<bool>,
+    h: Option<bool>,
+    c: Option<bool>,
 }
 
 impl Flags {
     /// Get the value of the zero flag.
     ///
     /// The zero flag is set if the result of the last ALU operation was 0.
-    /// 
+    ///
     /// Returns `None` if the instruction does not influence this flag.
-    pub(crate) fn zero(&self) -> Option<bool> {
-        self.zero
+    pub(crate) fn z(&self) -> Option<bool> {
+        self.z
     }
 
     /// Get the value of the subtract flag.
     ///
     /// The subtract flag is set if the last ALU operation was a subtraction
     /// (eg. SUB, SBC, DEC).
-    /// 
+    ///
     /// Returns `None` if the instruction does not influence this flag.
-    pub(crate) fn subtract(&self) -> Option<bool> {
-        self.subtract
+    pub(crate) fn n(&self) -> Option<bool> {
+        self.n
     }
 
     /// Get the value of the half carry flag.
@@ -35,10 +35,10 @@ impl Flags {
     /// The half carry flag is set if the last ALU operation caused a carry
     /// from bit 3 to bit 4 (for 8-bit operations) or from bit 11 to bit 12
     /// (for 16-bit operations).
-    /// 
+    ///
     /// Returns `None` if the instruction does not influence this flag.
-    pub(crate) fn half_carry(&self) -> Option<bool> {
-        self.half_carry
+    pub(crate) fn h(&self) -> Option<bool> {
+        self.h
     }
 
     /// Get the value of the carry flag.
@@ -47,10 +47,10 @@ impl Flags {
     /// 7 to bit 8 (for 8-bit operations) or from bit 15 to bit 16 (for 16-bit
     /// operations), or if a subtraction operation caused a borrow (ie. if the
     /// subtracted value was greater than the original value).
-    /// 
+    ///
     /// Returns `None` if the instruction does not influence this flag.
-    pub(crate) fn carry(&self) -> Option<bool> {
-        self.carry
+    pub(crate) fn c(&self) -> Option<bool> {
+        self.c
     }
 }
 
@@ -72,10 +72,10 @@ pub fn add(a: u8, b: u8) -> (u8, Flags) {
     (
         result,
         Flags {
-            zero: Some(result == 0),
-            subtract: Some(false),
-            half_carry: Some((a & 0xF) + (b & 0xF) > 0xF),
-            carry: Some(carry),
+            z: Some(result == 0),
+            n: Some(false),
+            h: Some((a & 0xF) + (b & 0xF) > 0xF),
+            c: Some(carry),
         },
     )
 }
@@ -92,10 +92,10 @@ pub fn adc(a: u8, b: u8, carry: bool) -> (u8, Flags) {
     (
         result,
         Flags {
-            zero: Some(result == 0),
-            subtract: Some(false),
-            half_carry: Some((a & 0xF) + (b & 0xF) + carry as u8 > 0xF),
-            carry: Some(result_carry),
+            z: Some(result == 0),
+            n: Some(false),
+            h: Some((a & 0xF) + (b & 0xF) + carry as u8 > 0xF),
+            c: Some(result_carry),
         },
     )
 }
@@ -103,7 +103,7 @@ pub fn adc(a: u8, b: u8, carry: bool) -> (u8, Flags) {
 /// Add two 16-bit values.
 ///
 /// # Flags
-/// - Z : Not affected.
+/// - Z : **None**.
 /// - N : 0 (cleared).
 /// - H : Set if overflow from bit 11.
 /// - C : Set if overflow from bit 15.
@@ -112,10 +112,30 @@ pub fn add16(a: u16, b: u16) -> (u16, Flags) {
     (
         result,
         Flags {
-            zero: None,
-            subtract: Some(false),
-            half_carry: Some((a & 0xFFF) + (b & 0xFFF) > 0xFFF),
-            carry: Some(carry),
+            z: None,
+            n: Some(false),
+            h: Some((a & 0xFFF) + (b & 0xFFF) > 0xFFF),
+            c: Some(carry),
+        },
+    )
+}
+
+/// Add a signed 8-bit value to a 16-bit value.
+///
+/// # Flags
+/// - Z : 0 (cleared)
+/// - N : 0 (cleared)
+/// - H : Set if overflow from bit 3.
+/// - C : Set if overflow from bit 7.
+pub fn add16_signed(a: u16, b: i8) -> (u16, Flags) {
+    let result = a.wrapping_add_signed(b as i16);
+    (
+        result,
+        Flags {
+            z: Some(false),
+            n: Some(false),
+            h: Some((a & 0xF) + (b as u16 & 0xF) > 0xF),
+            c: Some((a & 0xFF) + (b as u16 & 0xFF) > 0xFF),
         },
     )
 }
@@ -132,10 +152,10 @@ pub fn sub(a: u8, b: u8) -> (u8, Flags) {
     (
         result,
         Flags {
-            zero: Some(result == 0),
-            subtract: Some(true),
-            half_carry: Some((a & 0xF) < (b & 0xF)),
-            carry: Some(carry),
+            z: Some(result == 0),
+            n: Some(true),
+            h: Some((a & 0xF) < (b & 0xF)),
+            c: Some(carry),
         },
     )
 }
@@ -152,10 +172,10 @@ pub fn sbc(a: u8, b: u8, carry: bool) -> (u8, Flags) {
     (
         result,
         Flags {
-            zero: Some(result == 0),
-            subtract: Some(true),
-            half_carry: Some((a & 0xF) < (b & 0xF) + carry as u8),
-            carry: Some((a as u16) < (b as u16) + (carry as u16)),
+            z: Some(result == 0),
+            n: Some(true),
+            h: Some((a & 0xF) < (b & 0xF) + carry as u8),
+            c: Some((a as u16) < (b as u16) + (carry as u16)),
         },
     )
 }
@@ -172,10 +192,10 @@ pub fn and(a: u8, b: u8) -> (u8, Flags) {
     (
         result,
         Flags {
-            zero: Some(result == 0),
-            subtract: Some(false),
-            half_carry: Some(true),
-            carry: Some(false),
+            z: Some(result == 0),
+            n: Some(false),
+            h: Some(true),
+            c: Some(false),
         },
     )
 }
@@ -192,10 +212,10 @@ pub fn or(a: u8, b: u8) -> (u8, Flags) {
     (
         result,
         Flags {
-            zero: Some(result == 0),
-            subtract: Some(false),
-            half_carry: Some(false),
-            carry: Some(false),
+            z: Some(result == 0),
+            n: Some(false),
+            h: Some(false),
+            c: Some(false),
         },
     )
 }
@@ -212,32 +232,37 @@ pub fn xor(a: u8, b: u8) -> (u8, Flags) {
     (
         result,
         Flags {
-            zero: Some(result == 0),
-            subtract: Some(false),
-            half_carry: Some(false),
-            carry: Some(false),
+            z: Some(result == 0),
+            n: Some(false),
+            h: Some(false),
+            c: Some(false),
         },
     )
 }
 
 /// ComPare two 8-bit values.
 ///
-/// Perform a subtraction of `b` from `a` and discard the result. Returns the
-/// flags set according to the result of the operation.
+/// Perform a subtraction of `b` from `a` and discard the result.
+///
+/// Returns the flags set according to the result of the operation and the first
+/// argument.
 ///
 /// # Flags
 /// - Z : Set if result is 0.
 /// - N : 1 (set).
 /// - H : Set if borrow from bit 4.
 /// - C : Set if borrow (ie. B > A).
-pub fn cp(a: u8, b: u8) -> Flags {
+pub fn cp(a: u8, b: u8) -> (u8, Flags) {
     let (result, carry) = a.overflowing_sub(b);
-    Flags {
-        zero: Some(result == 0),
-        subtract: Some(true),
-        half_carry: Some((a & 0xF) < (b & 0xF)),
-        carry: Some(carry),
-    }
+    (
+        a,
+        Flags {
+            z: Some(result == 0),
+            n: Some(true),
+            h: Some((a & 0xF) < (b & 0xF)),
+            c: Some(carry),
+        },
+    )
 }
 
 /// Increment an 8-bit value.
@@ -246,16 +271,16 @@ pub fn cp(a: u8, b: u8) -> Flags {
 /// - Z : Set if result is 0.
 /// - N : 0 (cleared).
 /// - H : Set if overflow from bit 3.
-/// - C : Not affected.
+/// - C : **None**.
 pub fn inc(value: u8) -> (u8, Flags) {
     let result = value.wrapping_add(1);
     (
         result,
         Flags {
-            zero: Some(result == 0),
-            subtract: Some(false),
-            half_carry: Some((result & 0xF) == 0), // check carry from bit 4
-            carry: None,
+            z: Some(result == 0),
+            n: Some(false),
+            h: Some((result & 0xF) == 0), // check carry from bit 4
+            c: None,
         },
     )
 }
@@ -271,13 +296,14 @@ pub fn inc16(value: u16) -> (u16, Flags) {
     let result = value.wrapping_add(1);
     (
         result,
+        // we still return the flags for consistency, but all are None as this instruction does not affect any flag
         Flags {
-            zero: None,
-            subtract: None,
-            half_carry: None,
-            carry: None,
-        }
-    ) 
+            z: None,
+            n: None,
+            h: None,
+            c: None,
+        },
+    )
 }
 
 /// Decrement an 8-bit value.
@@ -286,16 +312,16 @@ pub fn inc16(value: u16) -> (u16, Flags) {
 /// - Z : Set if result is 0.
 /// - N : 1 (set).
 /// - H : Set if borrow from bit 4.
-/// - C : Not affected.
+/// - C : **None**.
 pub fn dec(value: u8) -> (u8, Flags) {
     let result = value.wrapping_sub(1);
     (
         result,
         Flags {
-            zero: Some(result == 0),
-            subtract: Some(true),
-            half_carry: Some((result & 0xF) == 0xF), // check borrow from bit 4
-            carry: None,
+            z: Some(result == 0),
+            n: Some(true),
+            h: Some((result & 0xF) == 0xF), // check borrow from bit 4
+            c: None,
         },
     )
 }
@@ -311,13 +337,14 @@ pub fn dec16(value: u16) -> (u16, Flags) {
     let result = value.wrapping_sub(1);
     (
         result,
+        // we still return the flags for consistency, but all are None as this instruction does not affect any flag
         Flags {
-            zero: None,
-            subtract: None,
-            half_carry: None,
-            carry: None,
-        }
-    ) 
+            z: None,
+            n: None,
+            h: None,
+            c: None,
+        },
+    )
 }
 
 /// Rotate value left.
@@ -344,10 +371,10 @@ pub fn rlc(value: u8) -> (u8, Flags) {
     (
         result,
         Flags {
-            zero: Some(result == 0),
-            subtract: Some(false),
-            half_carry: Some(false),
-            carry: Some((value & 0b1000_0000) != 0), // check the 8th bit of the original value
+            z: Some(result == 0),
+            n: Some(false),
+            h: Some(false),
+            c: Some((value & 0b1000_0000) != 0), // check the 8th bit of the original value
         },
     )
 }
@@ -376,10 +403,10 @@ pub fn rrc(value: u8) -> (u8, Flags) {
     (
         result,
         Flags {
-            zero: Some(result == 0),
-            subtract: Some(false),
-            half_carry: Some(false),
-            carry: Some((value & 0x1) != 0), // check the 1st bit of the original value
+            z: Some(result == 0),
+            n: Some(false),
+            h: Some(false),
+            c: Some((value & 0x1) != 0), // check the 1st bit of the original value
         },
     )
 }
@@ -408,10 +435,10 @@ pub fn rl(value: u8, carry: bool) -> (u8, Flags) {
     (
         result,
         Flags {
-            zero: Some(result == 0),
-            subtract: Some(false),
-            half_carry: Some(false),
-            carry: Some((value & 0b1000_0000) != 0), // check the 8th bit of the original value
+            z: Some(result == 0),
+            n: Some(false),
+            h: Some(false),
+            c: Some((value & 0b1000_0000) != 0), // check the 8th bit of the original value
         },
     )
 }
@@ -440,10 +467,10 @@ pub fn rr(value: u8, carry: bool) -> (u8, Flags) {
     (
         result,
         Flags {
-            zero: Some(result == 0),
-            subtract: Some(false),
-            half_carry: Some(false),
-            carry: Some((value & 0x1) != 0), // check the 1st bit of the original value
+            z: Some(result == 0),
+            n: Some(false),
+            h: Some(false),
+            c: Some((value & 0x1) != 0), // check the 1st bit of the original value
         },
     )
 }
@@ -466,10 +493,10 @@ pub fn sla(value: u8) -> (u8, Flags) {
     (
         result,
         Flags {
-            zero: Some(result == 0),
-            subtract: Some(false),
-            half_carry: Some(false),
-            carry: Some((value & 0b1000_0000) != 0), // check the 8th bit of the original value
+            z: Some(result == 0),
+            n: Some(false),
+            h: Some(false),
+            c: Some((value & 0b1000_0000) != 0), // check the 8th bit of the original value
         },
     )
 }
@@ -492,10 +519,10 @@ pub fn sra(value: u8) -> (u8, Flags) {
     (
         result,
         Flags {
-            zero: Some(result == 0),
-            subtract: Some(false),
-            half_carry: Some(false),
-            carry: Some((value & 0b1) != 0), // check the 1st bit of the original value
+            z: Some(result == 0),
+            n: Some(false),
+            h: Some(false),
+            c: Some((value & 0b1) != 0), // check the 1st bit of the original value
         },
     )
 }
@@ -512,10 +539,10 @@ pub fn swap(value: u8) -> (u8, Flags) {
     (
         result,
         Flags {
-            zero: Some(result == 0),
-            subtract: Some(false),
-            half_carry: Some(false),
-            carry: Some(false),
+            z: Some(result == 0),
+            n: Some(false),
+            h: Some(false),
+            c: Some(false),
         },
     )
 }
@@ -538,10 +565,10 @@ pub fn srl(value: u8) -> (u8, Flags) {
     (
         result,
         Flags {
-            zero: Some(result == 0),
-            subtract: Some(false),
-            half_carry: Some(false),
-            carry: Some((value & 0b1) != 0), // check the 1st bit of the original value
+            z: Some(result == 0),
+            n: Some(false),
+            h: Some(false),
+            c: Some((value & 0b1) != 0), // check the 1st bit of the original value
         },
     )
 }
@@ -554,14 +581,14 @@ pub fn srl(value: u8) -> (u8, Flags) {
 /// - Z : Set if the selected bit is 0.
 /// - N : 0 (cleared).
 /// - H : 1 (set).
-/// - C : Not affected.
+/// - C : **None**.
 pub fn bit(index: BitIndex, value: u8) -> Flags {
     let is_bit_set = (value & (1 << index)) != 0;
     Flags {
-        zero: Some(!is_bit_set), // flag is set if the tested bit is 0
-        subtract: Some(false),
-        half_carry: Some(true),
-        carry: None,
+        z: Some(!is_bit_set), // flag is set if the tested bit is 0
+        n: Some(false),
+        h: Some(true),
+        c: None,
     }
 }
 
@@ -578,12 +605,13 @@ pub fn set(index: BitIndex, value: u8) -> (u8, Flags) {
     let result = value | (1 << index);
     (
         result,
-        Flags { // Note: The SET instruction does not affect any flags.
-            zero: None,
-            subtract: None,
-            half_carry: None,
-            carry: None,
-        }
+        Flags {
+            // Note: The SET instruction does not affect any flags.
+            z: None,
+            n: None,
+            h: None,
+            c: None,
+        },
     )
 }
 
@@ -600,12 +628,13 @@ pub fn res(index: BitIndex, value: u8) -> (u8, Flags) {
     let result = value & !(1 << index);
     (
         result,
-        Flags { // Note: The RES instruction does not affect any flags.
-            zero: None,
-            subtract: None,
-            half_carry: None,
-            carry: None,
-        }
+        // we still return the flags for consistency, but all are None as this instruction does not affect any flag
+        Flags {
+            z: None,
+            n: None,
+            h: None,
+            c: None,
+        },
     )
 }
 
@@ -619,86 +648,86 @@ mod tests {
     fn add_basic() {
         let (result, flags) = add(1, 2);
         assert_eq!(result, 3);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     #[test]
     fn add_zero_flag() {
         let (result, flags) = add(0, 0);
         assert_eq!(result, 0);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
 
         let (result, flags) = add(1, 2);
         assert_eq!(result, 3);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
 
         // wrapping adds who result in 0 also set the z-flag
         let (result, flags) = add(0xFF, 1);
         assert_eq!(result, 0);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), Some(true));
     }
 
     #[test]
     fn add_half_carry() {
         let (result, flags) = add(0x0F, 0x01);
         assert_eq!(result, 0x10);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), Some(false));
 
         let (result, flags) = add(0x0E, 0x01);
         assert_eq!(result, 0x0F);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
 
         // h-flag only cares if the lower nibble overflows
         let (_, flags) = add(0xFE, 0x11);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(true));
         let (_, flags) = add(0xFF, 0x33);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), Some(true));
     }
 
     #[test]
     fn add_carry_flag() {
         let (result, flags) = add(0x80, 0x80);
         assert_eq!(result, 0x00);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(true));
 
         let (_, flags) = add(1, 2);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
 
         let (_, flags) = add(0xFF, 0xFF);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), Some(true));
     }
 
     // --- adc ---
@@ -707,71 +736,71 @@ mod tests {
     fn adc_basic() {
         let (result, flags) = adc(1, 1, true);
         assert_eq!(result, 3);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
 
         let (result, flags) = adc(1, 1, false);
         assert_eq!(result, 2);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     #[test]
     fn adc_zero_flag() {
         let (result, flags) = adc(0, 0, false);
         assert_eq!(result, 0x00);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
 
         let (result, flags) = adc(0, 0, true);
         assert_eq!(result, 0x01);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
 
         let (result, flags) = adc(0xFE, 0x01, true);
         assert_eq!(result, 0x00);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), Some(true));
     }
 
     #[test]
     fn adc_carry_flag() {
         let (result, flags) = adc(0xFE, 0x01, true);
         assert_eq!(result, 0x00);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), Some(true));
 
         let (result, flags) = adc(0xFE, 0x01, false);
         assert_eq!(result, 0xFF);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
 
         let (result, flags) = adc(0xF0, 0x0F, true);
         assert_eq!(result, 0x00);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), Some(true));
 
         let (_, flags) = adc(0xF0, 0xF0, false);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(true));
     }
 
     #[test]
@@ -779,17 +808,17 @@ mod tests {
         // 0x0F + 0x30 + carry(1) = 0x40 => half carry
         let (result, flags) = adc(0x0F, 0x30, true);
         assert_eq!(result, 0x40);
-        assert_eq!(flags.half_carry(), Some(true));
+        assert_eq!(flags.h(), Some(true));
 
         let (result, flags) = adc(0x0F, 0x30, false);
         assert_eq!(result, 0x3F);
-        assert_eq!(flags.half_carry(), Some(false));
+        assert_eq!(flags.h(), Some(false));
 
         let (_, flags) = adc(0xFF, 0x01, true);
-        assert_eq!(flags.half_carry(), Some(true));
+        assert_eq!(flags.h(), Some(true));
 
         let (_, flags) = adc(0xFE, 0x10, true);
-        assert_eq!(flags.half_carry(), Some(false));
+        assert_eq!(flags.h(), Some(false));
     }
 
     // --- add16 ---
@@ -798,49 +827,49 @@ mod tests {
     fn add16_basic() {
         let (result, flags) = add16(0x1234, 0x0001);
         assert_eq!(result, 0x1235);
-        assert_eq!(flags.zero(), None);
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), None);
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     #[test]
     fn add16_half_carry() {
         let (result, flags) = add16(0x0FFF, 0x0001);
         assert_eq!(result, 0x1000);
-        assert_eq!(flags.zero(), None);
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), None);
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), Some(false));
 
         let (result, flags) = add16(0x0FFE, 0x0001);
         assert_eq!(result, 0x0FFF);
-        assert_eq!(flags.zero(), None);
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), None);
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
 
         let (_, flags) = add16(0xFFFE, 0x1001);
-        assert_eq!(flags.zero(), None);
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), None);
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(true));
     }
 
     #[test]
     fn add16_carry() {
         let (result, flags) = add16(0xFFFF, 0x0001);
         assert_eq!(result, 0);
-        assert_eq!(flags.zero(), None);
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), None);
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), Some(true));
 
         let (_, flags) = add16(0x0012, 0x0001);
-        assert_eq!(flags.zero(), None);
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), None);
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     // --- sub ---
@@ -849,43 +878,43 @@ mod tests {
     fn sub_basic() {
         let (result, flags) = sub(5, 3);
         assert_eq!(result, 2);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     #[test]
     fn sub_zero_flag() {
         let (result, flags) = sub(5, 5);
         assert_eq!(result, 0);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
 
         let (_, flags) = sub(5, 4);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
 
         let (result, flags) = sub(0, 0);
         assert_eq!(result, 0);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     #[test]
     fn sub_carry_flag() {
         let (result, flags) = sub(0x00, 0x01);
         assert_eq!(result, 0xFF);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), Some(true));
     }
 
     #[test]
@@ -893,17 +922,17 @@ mod tests {
         // Lower nibble borrows: 0x10 - 0x01
         let (result, flags) = sub(0x10, 0x01);
         assert_eq!(result, 0x0F);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), Some(false));
 
         // Lower nibble doesn't borrow: 0x22 - 0x11
         let (_, flags) = sub(0x22, 0x11);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     // --- sbc ---
@@ -912,80 +941,80 @@ mod tests {
     fn sbc_basic() {
         let (result, flags) = sbc(5, 3, true);
         assert_eq!(result, 1);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     #[test]
     fn sbc_zero_flag() {
         let (result, flags) = sbc(5, 4, true);
         assert_eq!(result, 0);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
 
         let (_, flags) = sbc(5, 4, false);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
 
         let (result, flags) = sbc(4, 4, false);
         assert_eq!(result, 0);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     #[test]
     fn sbc_carry_flag() {
         let (result, flags) = sbc(0x00, 0x00, true);
         assert_eq!(result, 0xFF);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), Some(true));
 
         let (result, flags) = sbc(0x00, 0x00, false);
         assert_eq!(result, 0x00);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
 
         let (result, flags) = sbc(0xFF, 0xFF, true); // we subtract 1 from 0xFF - 0xFF
         assert_eq!(result, 0xFF);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), Some(true));
     }
 
     #[test]
     fn sbc_half_carry_flag() {
         let (result, flags) = sbc(0x10, 0x00, true);
         assert_eq!(result, 0x0F);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), Some(false));
 
         let (_, flags) = sbc(0x00, 0x00, false);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
 
         let (result, flags) = sbc(0xFF, 0xFF, true); // we subtract 1 from 0xFF - 0xFF
         assert_eq!(result, 0xFF);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), Some(true));
     }
 
     // --- and ---
@@ -994,20 +1023,20 @@ mod tests {
     fn and_basic() {
         let (result, flags) = and(0b1100, 0b1010);
         assert_eq!(result, 0b1000);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), Some(false));
     }
 
     #[test]
     fn and_zero_flag() {
         let (result, flags) = and(0b1100, 0b0011);
         assert_eq!(result, 0);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), Some(false));
     }
 
     // --- or ---
@@ -1016,20 +1045,20 @@ mod tests {
     fn or_basic() {
         let (result, flags) = or(0b1100, 0b0011);
         assert_eq!(result, 0b1111);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     #[test]
     fn or_zero_flag() {
         let (result, flags) = or(0, 0);
         assert_eq!(result, 0);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     // --- xor ---
@@ -1038,78 +1067,85 @@ mod tests {
     fn xor_basic() {
         let (result, flags) = xor(0b1100, 0b1010);
         assert_eq!(result, 0b0110);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     #[test]
     fn xor_zero_flag() {
         let (result, flags) = xor(0xAB, 0xAB);
         assert_eq!(result, 0);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     // --- cp ---
 
     #[test]
     fn cp_basic() {
-        let flags = cp(5, 3);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        let (result, flags) = cp(5, 3);
+        assert_eq!(result, 5); // cp doesn't change the value of the first operand
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     #[test]
     fn cp_zero_flag() {
-        let flags = cp(5, 5);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        let (result, flags) = cp(5, 5);
+        assert_eq!(result, 5); // cp doesn't change the value of the first operand
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
 
-        let flags = cp(5, 4);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        let (result, flags) = cp(5, 4);
+        assert_eq!(result, 5); // cp doesn't change the value of the first operand
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
 
-        let flags = cp(0, 0);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        let (result, flags) = cp(0, 0);
+        assert_eq!(result, 0); // cp doesn't change the value of the first operand
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     #[test]
     fn cp_carry_flag() {
-        let flags = cp(0x00, 0x01);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), Some(true));
+        let (result, flags) = cp(0x00, 0x01);
+        assert_eq!(result, 0x00);
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), Some(true));
     }
 
     #[test]
     fn cp_half_carry() {
         // Lower nibble borrows: 0x10 - 0x01
-        let flags = cp(0x10, 0x01);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), Some(false));
+        let (result, flags) = cp(0x10, 0x01);
+        assert_eq!(result, 0x10);
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), Some(false));
 
         // Lower nibble doesn't borrow: 0x22 - 0x11
-        let flags = cp(0x22, 0x11);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        let (result, flags) = cp(0x22, 0x11);
+        assert_eq!(result, 0x22);
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     // --- inc ---
@@ -1118,36 +1154,36 @@ mod tests {
     fn inc_basic() {
         let (result, flags) = inc(5);
         assert_eq!(result, 6);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), None);
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), None);
     }
 
     #[test]
     fn inc_zero_flag() {
         let (result, flags) = inc(0xFF);
         assert_eq!(result, 0);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), None);
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), None);
     }
 
     #[test]
     fn inc_half_carry() {
         let (result, flags) = inc(0x0F);
         assert_eq!(result, 0x10); // 0x0F + 1 = 0x10 => half carry
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), None);
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), None);
 
         let (_, flags) = inc(0x0E);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), None);
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), None);
     }
 
     // --- inc16 ---
@@ -1156,17 +1192,17 @@ mod tests {
     fn inc16_basic() {
         let (result, flags) = inc16(2);
         assert_eq!(result, 3);
-        assert!(flags.zero().is_none());
-        assert!(flags.subtract().is_none());
-        assert!(flags.half_carry().is_none());
-        assert!(flags.carry().is_none());
+        assert!(flags.z().is_none());
+        assert!(flags.n().is_none());
+        assert!(flags.h().is_none());
+        assert!(flags.c().is_none());
 
         let (result, flags) = inc16(0xFFFF);
         assert_eq!(result, 0x0000);
-        assert!(flags.zero().is_none());
-        assert!(flags.subtract().is_none());
-        assert!(flags.half_carry().is_none());
-        assert!(flags.carry().is_none());
+        assert!(flags.z().is_none());
+        assert!(flags.n().is_none());
+        assert!(flags.h().is_none());
+        assert!(flags.c().is_none());
     }
 
     // --- dec ---
@@ -1175,35 +1211,35 @@ mod tests {
     fn dec_basic() {
         let (result, flags) = dec(5);
         assert_eq!(result, 4);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), None);
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), None);
     }
 
     #[test]
     fn dec_zero_flag() {
         let (result, flags) = dec(1);
         assert_eq!(result, 0);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), None);
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), None);
     }
 
     #[test]
     fn dec_half_carry() {
         let (_, flags) = dec(0x10); // 0x10 - 1 = 0x0F => borrow from bit 4
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), None);
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), None);
 
         let (_, flags) = dec(0x11);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(true));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), None);
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(true));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), None);
     }
 
     // --- dec16 ---
@@ -1212,19 +1248,18 @@ mod tests {
     fn dec16_basic() {
         let (result, flags) = dec16(2);
         assert_eq!(result, 1);
-        assert!(flags.zero().is_none());
-        assert!(flags.subtract().is_none());
-        assert!(flags.half_carry().is_none());
-        assert!(flags.carry().is_none());
+        assert!(flags.z().is_none());
+        assert!(flags.n().is_none());
+        assert!(flags.h().is_none());
+        assert!(flags.c().is_none());
 
         let (result, flags) = dec16(0x0000);
         assert_eq!(result, 0xFFFF);
-        assert!(flags.zero().is_none());
-        assert!(flags.subtract().is_none());
-        assert!(flags.half_carry().is_none());
-        assert!(flags.carry().is_none());
+        assert!(flags.z().is_none());
+        assert!(flags.n().is_none());
+        assert!(flags.h().is_none());
+        assert!(flags.c().is_none());
     }
-
 
     // --- rlc ---
 
@@ -1233,10 +1268,10 @@ mod tests {
         // 0b0000_0010 rotated left => 0b0000_0100
         let (result, flags) = rlc(0b0000_0010);
         assert_eq!(result, 0b0000_0100);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     #[test]
@@ -1244,20 +1279,20 @@ mod tests {
         // 0b1000_0001 rotated left => 0b0000_0011, carry = 1
         let (result, flags) = rlc(0b1000_0001);
         assert_eq!(result, 0b0000_0011);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(true));
     }
 
     #[test]
     fn rlc_zero_flag() {
         let (result, flags) = rlc(0);
         assert_eq!(result, 0);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     // --- rrc ---
@@ -1267,10 +1302,10 @@ mod tests {
         // 0b0000_0100 rotated right => 0b0000_0010
         let (result, flags) = rrc(0b0000_0100);
         assert_eq!(result, 0b0000_0010);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     #[test]
@@ -1278,20 +1313,20 @@ mod tests {
         // 0b1000_0001 rotated right => 0b1100_0000, carry = 1
         let (result, flags) = rrc(0b1000_0001);
         assert_eq!(result, 0b1100_0000);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(true));
     }
 
     #[test]
     fn rrc_zero_flag() {
         let (result, flags) = rrc(0);
         assert_eq!(result, 0);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     // --- rl ---
@@ -1301,10 +1336,10 @@ mod tests {
         // carry flag = 0; shift 0b0000_0010 left => 0b0000_0100
         let (result, flags) = rl(0b0000_0010, false);
         assert_eq!(result, 0b0000_0100);
-        assert_eq!(flags.carry(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.zero(), Some(false));
+        assert_eq!(flags.c(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.z(), Some(false));
     }
 
     #[test]
@@ -1312,18 +1347,18 @@ mod tests {
         // 0b0000_0000 | carry => 0b0000_0001
         let (result, flags) = rl(0b0000_0000, true);
         assert_eq!(result, 0b0000_0001);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     #[test]
     fn rl_bit7_becomes_carry() {
         let (result, flags) = rl(0b1000_0000, false);
         assert_eq!(result, 0b0000_0000);
-        assert_eq!(flags.carry(), Some(true));
-        assert_eq!(flags.zero(), Some(true));
+        assert_eq!(flags.c(), Some(true));
+        assert_eq!(flags.z(), Some(true));
     }
 
     // --- rr ---
@@ -1332,28 +1367,28 @@ mod tests {
     fn rr_no_carry_in_no_carry_out() {
         let (result, flags) = rr(0b0000_0100, false);
         assert_eq!(result, 0b0000_0010);
-        assert_eq!(flags.carry(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.zero(), Some(false));
+        assert_eq!(flags.c(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.z(), Some(false));
     }
 
     #[test]
     fn rr_carry_in_enters_bit7() {
         let (result, flags) = rr(0b0000_0000, true);
         assert_eq!(result, 0b1000_0000);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     #[test]
     fn rr_bit0_becomes_carry() {
         let (result, flags) = rr(0b0000_0001, false);
         assert_eq!(result, 0b0000_0000);
-        assert_eq!(flags.carry(), Some(true));
-        assert_eq!(flags.zero(), Some(true));
+        assert_eq!(flags.c(), Some(true));
+        assert_eq!(flags.z(), Some(true));
     }
 
     // --- sla ---
@@ -1362,30 +1397,30 @@ mod tests {
     fn sla_basic() {
         let (result, flags) = sla(0b0000_0010);
         assert_eq!(result, 0b0000_0100);
-        assert_eq!(flags.carry(), Some(false));
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
+        assert_eq!(flags.c(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
     }
 
     #[test]
     fn sla_bit7_becomes_carry() {
         let (result, flags) = sla(0b1000_0001);
         assert_eq!(result, 0b0000_0010);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(true));
     }
 
     #[test]
     fn sla_zero_flag() {
         let (result, flags) = sla(0b1000_0000);
         assert_eq!(result, 0);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(true));
     }
 
     // --- sra ---
@@ -1395,30 +1430,30 @@ mod tests {
         // bit 7 is preserved
         let (result, flags) = sra(0b1000_0010);
         assert_eq!(result, 0b1100_0001);
-        assert_eq!(flags.carry(), Some(false));
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
+        assert_eq!(flags.c(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
     }
 
     #[test]
     fn sra_bit0_becomes_carry() {
         let (result, flags) = sra(0b0000_0001);
         assert_eq!(result, 0);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(true));
     }
 
     #[test]
     fn sra_zero_flag() {
         let (result, flags) = sra(0b0000_0000);
         assert_eq!(result, 0);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     // --- swap ---
@@ -1427,27 +1462,27 @@ mod tests {
     fn swap_basic() {
         let (result, flags) = swap(0xAB);
         assert_eq!(result, 0xBA);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
 
         let (result, flags) = swap(0x0A);
         assert_eq!(result, 0xA0);
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     #[test]
     fn swap_zero_flag() {
         let (result, flags) = swap(0x00);
         assert_eq!(result, 0x00);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(false));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(false));
     }
 
     // --- srl ---
@@ -1456,20 +1491,20 @@ mod tests {
     fn srl_basic() {
         let (result, flags) = srl(0b1000_0010);
         assert_eq!(result, 0b0100_0001);
-        assert_eq!(flags.carry(), Some(false));
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
+        assert_eq!(flags.c(), Some(false));
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
     }
 
     #[test]
     fn srl_bit0_becomes_carry() {
         let (result, flags) = srl(0b0000_0001);
         assert_eq!(result, 0b0000_0000);
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(false));
-        assert_eq!(flags.carry(), Some(true));
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(false));
+        assert_eq!(flags.c(), Some(true));
     }
 
     // --- bit ---
@@ -1477,19 +1512,19 @@ mod tests {
     #[test]
     fn bit_set_clears_zero() {
         let flags = bit(3, 0b0000_1000); // bit 3 is 1 => zero flag = false
-        assert_eq!(flags.zero(), Some(false));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), None);
+        assert_eq!(flags.z(), Some(false));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), None);
     }
 
     #[test]
     fn bit_clear_sets_zero() {
         let flags = bit(3, 0b0000_0000); // bit 3 is 0 => zero flag = true
-        assert_eq!(flags.zero(), Some(true));
-        assert_eq!(flags.subtract(), Some(false));
-        assert_eq!(flags.half_carry(), Some(true));
-        assert_eq!(flags.carry(), None);
+        assert_eq!(flags.z(), Some(true));
+        assert_eq!(flags.n(), Some(false));
+        assert_eq!(flags.h(), Some(true));
+        assert_eq!(flags.c(), None);
     }
 
     // --- res ---
@@ -1498,20 +1533,20 @@ mod tests {
     fn res_clears_bit() {
         let (result, flags) = res(3, 0b0000_1111);
         assert_eq!(result, 0b0000_0111);
-        assert!(flags.zero().is_none());
-        assert!(flags.subtract().is_none());
-        assert!(flags.half_carry().is_none());
-        assert!(flags.carry().is_none());
+        assert!(flags.z().is_none());
+        assert!(flags.n().is_none());
+        assert!(flags.h().is_none());
+        assert!(flags.c().is_none());
     }
 
     #[test]
     fn res_idempotent_when_already_clear() {
         let (result, flags) = res(3, 0b0000_0000);
         assert_eq!(result, 0b0000_0000);
-        assert!(flags.zero().is_none());
-        assert!(flags.subtract().is_none());
-        assert!(flags.half_carry().is_none());
-        assert!(flags.carry().is_none());
+        assert!(flags.z().is_none());
+        assert!(flags.n().is_none());
+        assert!(flags.h().is_none());
+        assert!(flags.c().is_none());
     }
 
     // --- set ---
@@ -1520,19 +1555,19 @@ mod tests {
     fn set_sets_bit() {
         let (result, flags) = set(3, 0b0000_0000);
         assert_eq!(result, 0b0000_1000);
-        assert!(flags.zero().is_none());
-        assert!(flags.subtract().is_none());
-        assert!(flags.half_carry().is_none());
-        assert!(flags.carry().is_none());
+        assert!(flags.z().is_none());
+        assert!(flags.n().is_none());
+        assert!(flags.h().is_none());
+        assert!(flags.c().is_none());
     }
 
     #[test]
     fn set_idempotent_when_already_set() {
         let (result, flags) = set(3, 0b0000_1000);
         assert_eq!(result, 0b0000_1000);
-        assert!(flags.zero().is_none());
-        assert!(flags.subtract().is_none());
-        assert!(flags.half_carry().is_none());
-        assert!(flags.carry().is_none());
+        assert!(flags.z().is_none());
+        assert!(flags.n().is_none());
+        assert!(flags.h().is_none());
+        assert!(flags.c().is_none());
     }
 }

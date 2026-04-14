@@ -41,43 +41,43 @@ impl Condition {
     /// - [`Condition::Z`] : true if zero flag is set.
     /// - [`Condition::NC`] : true if carry flag is **not** set.
     /// - [`Condition::C`] : true if carry flag is set.
-    pub fn check(&self, flags: Flags<'_>) -> bool {
+    pub fn check(&self, flags: &Flags) -> bool {
         match self {
-            Condition::NZ => !flags.zero(),
-            Condition::Z => flags.zero(),
-            Condition::NC => !flags.carry(),
-            Condition::C => flags.carry(),
+            Condition::NZ => !flags.z,
+            Condition::Z => flags.z,
+            Condition::NC => !flags.c,
+            Condition::C => flags.c,
         }
     }
 }
 
 impl From<u8> for Condition {
     /// Build a [`Condition`] from the given [`u8`] value.
-    /// 
-    /// This function only considers the 2 least significant bits of the value and 
+    ///
+    /// This function only considers the 2 least significant bits of the value and
     /// is intended to be used for the decoding of the opcodes of conditional
     /// instructions.
-    /// 
+    ///
     /// Values are mapped as follows:
     /// - 0 => [`Condition::NZ`]
     /// - 1 => [`Condition::Z`]
     /// - 2 => [`Condition::NC`]
     /// - 3 => [`Condition::C`]
-    /// 
+    ///
     /// # Example
     /// ```no_run
     /// let op_jr_nz_nn = 0x20; // opcode for JR NZ, nn
-    /// let op_jr_z_nn = 0x28;  // opcode for JR Z, nn
-    /// let op_jr_nc_nn = 0x30;  // opcode for JR NC, nn
-    /// let op_jr_c_nn = 0x38;  // opcode for JR C, nn
-    /// 
-    /// // The condition is encoded in bits 3 and 4 of the opcode, so we shift 
+    /// let op_jr_z_nn = 0x28;  // opcode for JR Z,  nn
+    /// let op_jr_nc_nn = 0x30; // opcode for JR NC, nn
+    /// let op_jr_c_nn = 0x38;  // opcode for JR C,  nn
+    ///
+    /// // The condition is encoded in bits 3 and 4 of the opcode, so we shift
     /// // right by 3 to get the value for the condition
     /// let cond_nz = Condition::from(op_jr_nz_nn >> 3);
     /// let cond_z = Condition::from(op_jr_z_nn >> 3);
     /// let cond_nc = Condition::from(op_jr_nc_nn >> 3);
     /// let cond_c = Condition::from(op_jr_c_nn >> 3);
-    /// 
+    ///
     /// assert!(matches!(cond_nz, Condition::NZ));
     /// assert!(matches!(cond_z, Condition::Z));
     /// assert!(matches!(cond_nc, Condition::NC));
@@ -97,43 +97,42 @@ impl From<u8> for Condition {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cpu::registers::Registers;
 
     #[test]
     fn check() {
-        let mut registers = Registers::new(); // zero'ed flags
+        let mut flags = Flags::new(); // zero'ed flags
 
-        assert!(Condition::NZ.check(registers.flags()));
-        assert!(!Condition::Z.check(registers.flags()));
-        assert!(Condition::NC.check(registers.flags()));
-        assert!(!Condition::C.check(registers.flags()));
+        assert!(Condition::NZ.check(&flags));
+        assert!(!Condition::Z.check(&flags));
+        assert!(Condition::NC.check(&flags));
+        assert!(!Condition::C.check(&flags));
 
-        registers.flags_mut().zero().set(true);
+        flags.z = true;
 
-        assert!(!Condition::NZ.check(registers.flags()));
-        assert!(Condition::Z.check(registers.flags()));
-        assert!(Condition::NC.check(registers.flags()));
-        assert!(!Condition::C.check(registers.flags()));
+        assert!(!Condition::NZ.check(&flags));
+        assert!(Condition::Z.check(&flags));
+        assert!(Condition::NC.check(&flags));
+        assert!(!Condition::C.check(&flags));
 
-        registers.flags_mut().carry().set(true);
+        flags.c = true;
 
-        assert!(!Condition::NZ.check(registers.flags()));
-        assert!(Condition::Z.check(registers.flags()));
-        assert!(!Condition::NC.check(registers.flags()));
-        assert!(Condition::C.check(registers.flags()));
+        assert!(!Condition::NZ.check(&flags));
+        assert!(Condition::Z.check(&flags));
+        assert!(!Condition::NC.check(&flags));
+        assert!(Condition::C.check(&flags));
 
-        registers.flags_mut().carry().set(false);
+        flags.c = false;
 
-        assert!(!Condition::NZ.check(registers.flags()));
-        assert!(Condition::Z.check(registers.flags()));
-        assert!(Condition::NC.check(registers.flags()));
-        assert!(!Condition::C.check(registers.flags()));
+        assert!(!Condition::NZ.check(&flags));
+        assert!(Condition::Z.check(&flags));
+        assert!(Condition::NC.check(&flags));
+        assert!(!Condition::C.check(&flags));
 
-        registers.flags_mut().zero().set(false);
+        flags.z = false;
 
-        assert!(Condition::NZ.check(registers.flags()));
-        assert!(!Condition::Z.check(registers.flags()));
-        assert!(Condition::NC.check(registers.flags()));
-        assert!(!Condition::C.check(registers.flags()));
+        assert!(Condition::NZ.check(&flags));
+        assert!(!Condition::Z.check(&flags));
+        assert!(Condition::NC.check(&flags));
+        assert!(!Condition::C.check(&flags));
     }
 }
