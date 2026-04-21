@@ -476,7 +476,6 @@ pub trait InstructionHandler {
 
         let expected = r#"
 pub const TEST_TABLE: [InstructionMeta; 2] = [
-
     // 0x00-0x0F
     InstructionMeta {
         mnemonic: "NOP",
