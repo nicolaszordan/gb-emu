@@ -51,7 +51,7 @@ const UNPREFIXED_TABLE_NAME: &str = "UNPREFIXED_INSTRUCTIONS";
 const CBPREFIXED_TABLE_NAME: &str = "CBPREFIXED_INSTRUCTIONS";
 
 pub fn generate_code(input: &str) -> Result<String, Box<dyn Error>> {
-    let instructions: InstructionMaps = serde_json::from_str(&input)?;
+    let instructions: InstructionMaps = serde_json::from_str(input)?;
 
     let mut output = String::new();
 
@@ -125,9 +125,9 @@ fn generate_trait_method_operand_name(operand: &Operand) -> String {
 
     // For HL+/HL- instructions, append inc/dec to the operand name
     if operand.increment.unwrap_or(false) {
-        operand_name.push_str("i");
+        operand_name.push('i');
     } else if operand.decrement.unwrap_or(false) {
-        operand_name.push_str("d");
+        operand_name.push('d');
     }
 
     operand_name
@@ -170,7 +170,7 @@ fn generate_instruction_table(
 ) -> String {
     let mut output = String::new();
 
-    output.push_str("\n");
+    output.push('\n');
     output.push_str(&format!(
         "pub const {}: [InstructionMeta; {}] = [\n",
         table_name,
