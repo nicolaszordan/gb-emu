@@ -1060,16 +1060,16 @@ impl CPU {
     /// ```
     fn copy_flags<const FLAG_MASK: u8>(&mut self, flags: &alu::Flags) {
         if FLAG_MASK & flag_mask::Z != 0 {
-            self.registers.flags.z = flags.z().unwrap(); // should be promoted to unwrap_unsafe
+            self.registers.flags.z = flags.z().expect("unexpected None value for z flag");
         }
         if FLAG_MASK & flag_mask::N != 0 {
-            self.registers.flags.n = flags.n().unwrap(); // should be promoted to unwrap_unsafe
+            self.registers.flags.n = flags.n().expect("unexpected None value for n flag");
         }
         if FLAG_MASK & flag_mask::H != 0 {
-            self.registers.flags.h = flags.h().unwrap(); // should be promoted to unwrap_unsafe
+            self.registers.flags.h = flags.h().expect("unexpected None value for h flag");
         }
         if FLAG_MASK & flag_mask::C != 0 {
-            self.registers.flags.c = flags.c().unwrap(); // should be promoted to unwrap_unsafe
+            self.registers.flags.c = flags.c().expect("unexpected None value for c flag");
         }
     }
 
