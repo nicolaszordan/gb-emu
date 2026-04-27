@@ -1,4 +1,4 @@
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum R8Param {
     /// Designate a parameter using CPU's `B` register
     B,
@@ -56,6 +56,7 @@ impl From<u8> for R8Param {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum R16Param {
     BC,
     DE,
@@ -75,6 +76,7 @@ impl From<u8> for R16Param {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum R16StackParam {
     BC,
     DE,
@@ -94,6 +96,7 @@ impl From<u8> for R16StackParam {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum R16MemParam {
     IndBC,
     IndDE,
@@ -115,6 +118,7 @@ impl From<u8> for R16MemParam {
 
 pub use emu::BitIndex;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LD8SrcParam {
     R8(R8Param),
     R16Mem(R16MemParam),
@@ -139,12 +143,14 @@ impl From<R16MemParam> for LD8SrcParam {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LD16SrcParam {
     HL,
     SP,
     N16,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LD16DstParam {
     R16(R16Param),
     IndN16,
@@ -156,6 +162,7 @@ impl From<R16Param> for LD16DstParam {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ALU8Param {
     R8(R8Param),
     N8,
@@ -167,6 +174,7 @@ impl From<R8Param> for ALU8Param {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CallParam {
     /// Designate a parameter using the next 16bits after the current
     /// instruction as an absolute address for the call.
@@ -176,6 +184,7 @@ pub enum CallParam {
     VEC(u16),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JumpParam {
     /// Designate a parameter using the next 8bits after the current
     /// instruction as a **signed** [`i8`]. The jump will add this signed to
@@ -191,11 +200,13 @@ pub enum JumpParam {
     HL,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AddSPe8DstParam {
     HL,
     SP,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ALUOperation {
     ADD,
     ADC,
@@ -238,6 +249,7 @@ impl From<u8> for ALUOperation {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BitRotateOperation {
     RLC,
     RRC,
@@ -257,6 +269,7 @@ impl From<u8> for BitRotateOperation {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BitShiftOperation {
     Rotate(BitRotateOperation),
     SLA,
