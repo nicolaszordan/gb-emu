@@ -402,7 +402,11 @@ impl CPU {
     pub(crate) fn instr_inc8<M: MemoryBus>(&mut self, bus: &mut M, param: R8Param) -> u32 {
         let op = Operand8::from(param);
         let (result, flags) = alu::inc(op.read(self, bus));
-        self.copy_flags::<{ flag_mask::Z | flag_mask::N | flag_mask::H }>(&flags);
+
+        unsafe {
+            // SAFETY: alu::inc returns only the Z, N, and H flags.
+            self.copy_flags_unchecked::<{ flag_mask::Z | flag_mask::N | flag_mask::H }>(&flags);
+        }
         op.write(self, bus, result);
 
         0
@@ -434,7 +438,12 @@ impl CPU {
     pub(crate) fn instr_dec8<M: MemoryBus>(&mut self, bus: &mut M, param: R8Param) -> u32 {
         let op = Operand8::from(param);
         let (result, flags) = alu::dec(op.read(self, bus));
-        self.copy_flags::<{ flag_mask::Z | flag_mask::N | flag_mask::H }>(&flags);
+
+        unsafe {
+            // SAFETY: alu::dec returns only the Z, N, and H flags.
+            self.copy_flags_unchecked::<{ flag_mask::Z | flag_mask::N | flag_mask::H }>(&flags);
+        }
+
         op.write(self, bus, result);
 
         0
@@ -549,7 +558,10 @@ impl CPU {
 
         self.registers.a = result; // we're still assigning cp's result as it just returns a without modifying it, so this is a noop effectively
 
-        self.copy_all_flags(&flags);
+        unsafe {
+            // SAFETY: all operations in alu::add/adc/sub/sbc/and/xor/or/cp return all flags.
+            self.copy_all_flags_unchecked(&flags);
+        }
 
         0
     }
@@ -575,7 +587,11 @@ impl CPU {
         let value = Operand16::from(param).read(self, bus);
         let (result, flags) = alu::add16(self.registers.hl_get(), value);
         self.registers.hl_set(result);
-        self.copy_flags::<{ flag_mask::N | flag_mask::H | flag_mask::C }>(&flags);
+
+        unsafe {
+            // SAFETY: alu::add16 returns only the N, H, and C flags.
+            self.copy_flags_unchecked::<{ flag_mask::N | flag_mask::H | flag_mask::C }>(&flags);
+        }
 
         0
     }
@@ -612,7 +628,10 @@ impl CPU {
 
         Operand16::from(dst).write(self, bus, result);
 
-        self.copy_all_flags(&flags);
+        unsafe {
+            // SAFETY: alu::add16_signed returns all flags
+            self.copy_all_flags_unchecked(&flags);
+        }
 
         0
     }
@@ -693,7 +712,10 @@ impl CPU {
 
         op.write(self, bus, result);
 
-        self.copy_all_flags(&flags);
+        unsafe {
+            // SAFETY: all operations in alu::rlc/rrc/rl/rr/sla/sra/swap/srl return all flags.
+            self.copy_all_flags_unchecked(&flags);
+        }
 
         0
     }
@@ -731,7 +753,10 @@ impl CPU {
 
         let flags = alu::bit(bit_index, value);
 
-        self.copy_flags::<{ flag_mask::Z | flag_mask::N | flag_mask::H }>(&flags);
+        unsafe {
+            // SAFETY: alu::bit only returns flags Z, N, and H
+            self.copy_flags_unchecked::<{ flag_mask::Z | flag_mask::N | flag_mask::H }>(&flags);
+        }
 
         0
     }
@@ -1048,28 +1073,48 @@ impl CPU {
     ///     this will copy all the flags from the `flags` parameter into the
     ///     CPU's registers.
     ///
+    /// # Safety
+    ///
+    /// This function is marked as unsafe because it allows the caller to
+    /// specify which flags to copy into the CPU's registers without any check,
+    /// so the caller must ensure that the `FLAG_MASK` provided is valid and
+    /// correctly represents the flags that should be copied from the given
+    /// `alu::Flags` into the CPU's registers. Incorrect usage of this function
+    /// will lead to undefined behavior.
+    ///
     /// # Example
     /// ```no_run
     /// let mut cpu = CPU::new();
     /// let (_, flags) = alu::sub(0, 1);
-    /// cpu.copy_flags::<{flag_mask::Z | flag_mask::N | flag_mask::H | flag_mask::C}>(flags); // `flag_mask::ALL` could also have been used here
+    /// unsafe {
+    ///     // SAFETY: we know that the flags returned by `alu::sub` are Z, N, H and C flags.
+    ///     cpu.copy_flags_unchecked::<{flag_mask::Z | flag_mask::N | flag_mask::H | flag_mask::C}>(flags); // `flag_mask::ALL` could also have been used here
+    /// }
     /// assert!(!cpu.registers.flags.z)
     /// assert!(cpu.registers.flags.n)
     /// assert!(cpu.registers.flags.h)
     /// assert!(cpu.registers.flags.c)
     /// ```
-    fn copy_flags<const FLAG_MASK: u8>(&mut self, flags: &alu::Flags) {
+    unsafe fn copy_flags_unchecked<const FLAG_MASK: u8>(&mut self, flags: &alu::Flags) {
         if FLAG_MASK & flag_mask::Z != 0 {
-            self.registers.flags.z = flags.z().unwrap(); // should be promoted to unwrap_unsafe
+            unsafe {
+                self.registers.flags.z = flags.z().unwrap_unchecked();
+            }
         }
         if FLAG_MASK & flag_mask::N != 0 {
-            self.registers.flags.n = flags.n().unwrap(); // should be promoted to unwrap_unsafe
+            unsafe {
+                self.registers.flags.n = flags.n().unwrap_unchecked();
+            }
         }
         if FLAG_MASK & flag_mask::H != 0 {
-            self.registers.flags.h = flags.h().unwrap(); // should be promoted to unwrap_unsafe
+            unsafe {
+                self.registers.flags.h = flags.h().unwrap_unchecked();
+            }
         }
         if FLAG_MASK & flag_mask::C != 0 {
-            self.registers.flags.c = flags.c().unwrap(); // should be promoted to unwrap_unsafe
+            unsafe {
+                self.registers.flags.c = flags.c().unwrap_unchecked();
+            }
         }
     }
 
@@ -1078,21 +1123,33 @@ impl CPU {
     /// See `CPU::copy_flags` for more granularity over which flag is copied or
     /// not.
     ///
+    /// # Safety
+    ///
+    /// This function is marked as unsafe because it copies all flags from the
+    /// given `alu::Flags` into the CPU's registers without any check, so the
+    /// caller must ensure that the `alu::Flags` provided are valid and
+    /// correctly represent the flags that should be set in the CPU's registers.
+    /// Incorrect usage of this function will lead to undefined behavior.
+    ///
     /// # Example
     /// ```no_run
     /// let mut cpu = CPU::new();
     /// let (_, flags) = alu::sub(0, 1);
-    /// cpu.copy_all_flags(flags);
+    /// unsafe {
+    ///     // SAFETY: `alu::sub` returns all flags.
+    ///     cpu.copy_all_flags_unchecked(flags);
+    /// }
     /// assert!(!cpu.registers.flags.z)
     /// assert!(cpu.registers.flags.n)
     /// assert!(cpu.registers.flags.h)
     /// assert!(cpu.registers.flags.c)
     /// ```
-    fn copy_all_flags(&mut self, flags: &alu::Flags) {
-        self.copy_flags::<{ flag_mask::ALL }>(flags)
+    unsafe fn copy_all_flags_unchecked(&mut self, flags: &alu::Flags) {
+        unsafe { self.copy_flags_unchecked::<{ flag_mask::ALL }>(flags) }
     }
 }
 
+// FIXME: replace with bitflags crate
 /// helper module for the `CPU::apply_mask` function
 ///
 /// # Masks
