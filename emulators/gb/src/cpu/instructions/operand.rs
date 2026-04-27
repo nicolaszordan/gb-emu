@@ -217,30 +217,30 @@ impl From<LD16DstParam> for Operand16 {
     }
 }
 
-impl From<JPParam> for Operand16 {
-    fn from(value: JPParam) -> Self {
+impl From<JumpParam> for Operand16 {
+    fn from(value: JumpParam) -> Self {
         match value {
-            JPParam::PCE8 => Self::PCE8,
-            JPParam::N16 => Self::N16,
-            JPParam::HL => Self::HL,
+            JumpParam::PCE8 => Self::PCE8,
+            JumpParam::N16 => Self::N16,
+            JumpParam::HL => Self::HL,
         }
     }
 }
 
-impl From<CALLParam> for Operand16 {
-    fn from(value: CALLParam) -> Self {
+impl From<CallParam> for Operand16 {
+    fn from(value: CallParam) -> Self {
         match value {
-            CALLParam::N16 => Self::N16,
-            CALLParam::VEC(v) => Self::VEC(v),
+            CallParam::N16 => Self::N16,
+            CallParam::VEC(v) => Self::VEC(v),
         }
     }
 }
 
-impl From<ADDSPE8DstParam> for Operand16 {
-    fn from(value: ADDSPE8DstParam) -> Self {
+impl From<AddSPe8DstParam> for Operand16 {
+    fn from(value: AddSPe8DstParam) -> Self {
         match value {
-            ADDSPE8DstParam::HL => Self::HL,
-            ADDSPE8DstParam::SP => Self::SP,
+            AddSPe8DstParam::HL => Self::HL,
+            AddSPe8DstParam::SP => Self::SP,
         }
     }
 }

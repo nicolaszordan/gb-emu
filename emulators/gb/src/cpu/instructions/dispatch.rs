@@ -47,9 +47,9 @@ impl CPU {
             ),
             0x0B | 0x1B | 0x2B | 0x3B => self.instr_dec16(mem_bus, R16Param::from(opcode >> 4)),
             0x10 => self.instr_stop(),
-            0x18 => self.instr_jump(mem_bus, JPParam::PCE8),
+            0x18 => self.instr_jump(mem_bus, JumpParam::PCE8),
             0x20 | 0x28 | 0x30 | 0x38 => {
-                self.instr_cond_jump(mem_bus, Condition::from(opcode >> 3), JPParam::PCE8)
+                self.instr_cond_jump(mem_bus, Condition::from(opcode >> 3), JumpParam::PCE8)
             }
             0x27 => self.instr_daa(),
             0x2F => self.instr_cpl(),
@@ -69,32 +69,32 @@ impl CPU {
             0xC0 | 0xC8 | 0xD0 | 0xD8 => self.instr_cond_ret(mem_bus, Condition::from(opcode >> 3)),
             0xC1 | 0xD1 | 0xE1 | 0xF1 => self.instr_pop(mem_bus, R16StackParam::from(opcode >> 4)),
             0xC2 | 0xCA | 0xD2 | 0xDA => {
-                self.instr_cond_jump(mem_bus, Condition::from(opcode >> 3), JPParam::N16)
+                self.instr_cond_jump(mem_bus, Condition::from(opcode >> 3), JumpParam::N16)
             }
-            0xC3 => self.instr_jump(mem_bus, JPParam::N16),
+            0xC3 => self.instr_jump(mem_bus, JumpParam::N16),
             0xC4 | 0xCC | 0xD4 | 0xDC => {
-                self.instr_cond_call(mem_bus, Condition::from(opcode >> 3), CALLParam::N16)
+                self.instr_cond_call(mem_bus, Condition::from(opcode >> 3), CallParam::N16)
             }
             0xC5 | 0xD5 | 0xE5 | 0xF5 => self.instr_push(mem_bus, R16StackParam::from(opcode >> 4)),
             0xC6 | 0xCE | 0xD6 | 0xDE | 0xE6 | 0xEE | 0xF6 | 0xFE => {
                 self.instr_alu(mem_bus, ALUOperation::from(opcode >> 3), ALU8Param::N8)
             }
             0xC7 | 0xCF | 0xD7 | 0xDF | 0xE7 | 0xEF | 0xF7 | 0xFF => {
-                self.instr_call(mem_bus, CALLParam::VEC(opcode as u16 - 0xC7))
+                self.instr_call(mem_bus, CallParam::VEC(opcode as u16 - 0xC7))
             }
             0xC9 => self.instr_ret(mem_bus),
             0xCB => self.instr_prefix(mem_bus),
-            0xCD => self.instr_call(mem_bus, CALLParam::N16),
+            0xCD => self.instr_call(mem_bus, CallParam::N16),
             0xD9 => self.instr_reti(mem_bus),
             0xE0 => self.instr_ld8(mem_bus, LD8DstParam::IndHighMemA8, R8Param::A.into()),
             0xE2 => self.instr_ld8(mem_bus, LD8DstParam::IndHighMemC, R8Param::A.into()),
-            0xE8 => self.instr_add_spe8(mem_bus, ADDSPE8DstParam::SP),
-            0xE9 => self.instr_jump(mem_bus, JPParam::HL),
+            0xE8 => self.instr_add_spe8(mem_bus, AddSPe8DstParam::SP),
+            0xE9 => self.instr_jump(mem_bus, JumpParam::HL),
             0xEA => self.instr_ld8(mem_bus, LD8DstParam::IndN16, R8Param::A.into()),
             0xF0 => self.instr_ld8(mem_bus, R8Param::A.into(), LD8SrcParam::IndHighMemA8),
             0xF2 => self.instr_ld8(mem_bus, R8Param::A.into(), LD8SrcParam::IndHighMemC),
             0xF3 => self.instr_di(),
-            0xF8 => self.instr_add_spe8(mem_bus, ADDSPE8DstParam::HL),
+            0xF8 => self.instr_add_spe8(mem_bus, AddSPe8DstParam::HL),
             0xF9 => self.instr_ld16(mem_bus, R16Param::SP.into(), LD16SrcParam::HL),
             0xFA => self.instr_ld8(mem_bus, R8Param::A.into(), LD8SrcParam::IndN16),
             0xFB => self.instr_ei(),

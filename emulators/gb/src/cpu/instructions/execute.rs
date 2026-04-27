@@ -149,7 +149,7 @@ impl CPU {
     ///
     /// assert_eq!(cpu.pc, 0x1234); // pc is now at 0x1234 and will continue executing from there
     /// ```
-    pub(crate) fn instr_jump<M: MemoryBus>(&mut self, bus: &M, param: JPParam) -> u32 {
+    pub(crate) fn instr_jump<M: MemoryBus>(&mut self, bus: &M, param: JumpParam) -> u32 {
         self.pc = Operand16::from(param).read(self, bus);
 
         0
@@ -191,7 +191,7 @@ impl CPU {
         &mut self,
         bus: &M,
         condition: Condition,
-        param: JPParam,
+        param: JumpParam,
     ) -> u32 {
         if condition.check(&self.registers.flags) {
             self.instr_jump(bus, param) + 4
@@ -221,7 +221,7 @@ impl CPU {
     /// assert_eq!(cpu.pc, 0x1234);
     /// assert_eq!(cpu.stack().peek_word(&bus), 0x0102); // the value pushed into the stack points to the next instruction after the call (0x0102 in this case)
     /// ```
-    pub(crate) fn instr_call<M: MemoryBus>(&mut self, bus: &mut M, param: CALLParam) -> u32 {
+    pub(crate) fn instr_call<M: MemoryBus>(&mut self, bus: &mut M, param: CallParam) -> u32 {
         let dst = Operand16::from(param).read(self, bus);
         let pc = self.pc;
 
@@ -269,7 +269,7 @@ impl CPU {
         &mut self,
         bus: &mut M,
         condition: Condition,
-        param: CALLParam,
+        param: CallParam,
     ) -> u32 {
         if condition.check(&self.registers.flags) {
             self.instr_call(bus, param) + 12
@@ -604,7 +604,7 @@ impl CPU {
     pub(crate) fn instr_add_spe8<M: MemoryBus>(
         &mut self,
         bus: &mut M,
-        dst: ADDSPE8DstParam,
+        dst: AddSPe8DstParam,
     ) -> u32 {
         let e8 = Operand8::E8.read(self, bus) as i8;
         let sp = self.sp;
@@ -1355,19 +1355,19 @@ mod tests {
             cpu.pc = 0x1234;
             bus.write_word(cpu.pc, 0x5678);
 
-            let cycles = cpu.instr_jump(&bus, JPParam::N16);
+            let cycles = cpu.instr_jump(&bus, JumpParam::N16);
 
             assert_eq!(cycles, 0);
             assert_eq!(cpu.pc, 0x5678);
 
             bus.write(cpu.pc, -2 as i8 as u8);
-            let cycles = cpu.instr_jump(&bus, JPParam::PCE8);
+            let cycles = cpu.instr_jump(&bus, JumpParam::PCE8);
 
             assert_eq!(cycles, 0);
             assert_eq!(cpu.pc, 0x5677); // pc +1 -2
 
             bus.write(cpu.pc, 5);
-            let cycles = cpu.instr_jump(&bus, JPParam::PCE8);
+            let cycles = cpu.instr_jump(&bus, JumpParam::PCE8);
 
             assert_eq!(cycles, 0);
             assert_eq!(cpu.pc, 0x567D); // pc +1 +5
@@ -1382,19 +1382,19 @@ mod tests {
             cpu.registers.flags.z = false;
 
             // fail this condition -- should not jump
-            let cycles = cpu.instr_cond_jump(&bus, Condition::Z, JPParam::N16);
+            let cycles = cpu.instr_cond_jump(&bus, Condition::Z, JumpParam::N16);
             assert_eq!(cycles, 0);
             assert_eq!(cpu.pc, 0x1236); // pc should still move forward past the argument
 
             // fail this one too -- should not jump
-            let cycles = cpu.instr_cond_jump(&bus, Condition::Z, JPParam::PCE8);
+            let cycles = cpu.instr_cond_jump(&bus, Condition::Z, JumpParam::PCE8);
             assert_eq!(cycles, 0);
             assert_eq!(cpu.pc, 0x1237); // pc should still move forward past the argument
 
             cpu.registers.hl_set(0x789A);
 
             // check the opposite condition -- should jump this time
-            let cycles = cpu.instr_cond_jump(&bus, Condition::NZ, JPParam::HL);
+            let cycles = cpu.instr_cond_jump(&bus, Condition::NZ, JumpParam::HL);
             assert_eq!(cycles, 4);
             assert_eq!(cpu.pc, 0x789A);
         }
@@ -1415,7 +1415,7 @@ mod tests {
                 cpu.sp = 0xFFFE;
                 bus.write_word(cpu.pc, 0x5678);
 
-                let cycles = cpu.instr_call(&mut bus, CALLParam::N16);
+                let cycles = cpu.instr_call(&mut bus, CallParam::N16);
 
                 assert_eq!(cycles, 0);
                 assert_eq!(cpu.pc, 0x5678); // pc should now be at the call address
@@ -1431,7 +1431,7 @@ mod tests {
                 cpu.pc = 0x1234;
                 cpu.sp = 0xFFFE;
 
-                let cycles = cpu.instr_call(&mut bus, CALLParam::VEC(0x789A));
+                let cycles = cpu.instr_call(&mut bus, CallParam::VEC(0x789A));
 
                 assert_eq!(cycles, 0);
                 assert_eq!(cpu.pc, 0x789A); // pc should now be at the call address
@@ -1450,7 +1450,7 @@ mod tests {
                 cpu.registers.flags.c = false;
 
                 // fail this condition -- should not call
-                let cycles = cpu.instr_cond_call(&mut bus, Condition::C, CALLParam::N16);
+                let cycles = cpu.instr_cond_call(&mut bus, Condition::C, CallParam::N16);
 
                 assert_eq!(cycles, 0);
                 assert_eq!(cpu.pc, 0x1236); // pc should still move forward past the argument
@@ -1458,7 +1458,7 @@ mod tests {
                 bus.write_word(cpu.pc, 0x789A);
 
                 // check the opposite condition -- should call this time
-                let cycles = cpu.instr_cond_call(&mut bus, Condition::NC, CALLParam::N16);
+                let cycles = cpu.instr_cond_call(&mut bus, Condition::NC, CallParam::N16);
 
                 assert_eq!(cycles, 12);
                 assert_eq!(cpu.pc, 0x789A); // pc should now be at the call address
@@ -1993,7 +1993,7 @@ mod tests {
                     cpu.pc = 0x0001;
                     bus.write(cpu.pc, 0x08);
 
-                    let cycles = cpu.instr_add_spe8(&mut bus, ADDSPE8DstParam::SP);
+                    let cycles = cpu.instr_add_spe8(&mut bus, AddSPe8DstParam::SP);
 
                     assert_eq!(cycles, 0);
                     assert_eq!(cpu.pc, 0x0002);
@@ -2012,7 +2012,7 @@ mod tests {
 
                     bus.write(cpu.pc, -8 as i8 as u8);
 
-                    let cycles = cpu.instr_add_spe8(&mut bus, ADDSPE8DstParam::HL);
+                    let cycles = cpu.instr_add_spe8(&mut bus, AddSPe8DstParam::HL);
 
                     assert_eq!(cycles, 0);
                     assert_eq!(cpu.pc, 0x0002);

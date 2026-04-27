@@ -167,7 +167,7 @@ impl From<R8Param> for ALU8Param {
     }
 }
 
-pub enum CALLParam {
+pub enum CallParam {
     /// Designate a parameter using the next 16bits after the current
     /// instruction as an absolute address for the call.
     N16,
@@ -176,7 +176,7 @@ pub enum CALLParam {
     VEC(u16),
 }
 
-pub enum JPParam {
+pub enum JumpParam {
     /// Designate a parameter using the next 8bits after the current
     /// instruction as a **signed** [`i8`]. The jump will add this signed to
     /// the [`CPU::pc`] to perform the jump.
@@ -191,7 +191,7 @@ pub enum JPParam {
     HL,
 }
 
-pub enum ADDSPE8DstParam {
+pub enum AddSPe8DstParam {
     HL,
     SP,
 }

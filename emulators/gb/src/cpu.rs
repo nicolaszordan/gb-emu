@@ -5,8 +5,9 @@ mod stack;
 
 use emu::MemoryBus;
 use registers::Registers;
-use stack::StackControler;
+use stack::StackController;
 
+#[allow(clippy::upper_case_acronyms)] // we're suppressing this lint to keep the naming consistent with the pan docs
 #[derive(Debug, PartialEq, Eq)]
 pub struct CPU {
     /// CPU Registers
@@ -69,8 +70,8 @@ impl CPU {
         }
     }
 
-    fn stack(&mut self) -> StackControler<'_> {
-        StackControler::new(&mut self.sp)
+    fn stack(&mut self) -> StackController<'_> {
+        StackController::new(&mut self.sp)
     }
 
     /// Read the current byte at `pc` and increment `pc` to the next byte.
@@ -120,6 +121,7 @@ impl CPU {
     }
 }
 
+#[allow(clippy::upper_case_acronyms)] // we're suppressing this lint to keep the naming consistent with the pan docs
 #[derive(Debug, PartialEq, Eq)]
 enum IME {
     /// Interrupt Master Enable flag is reset, and will be set after the next
