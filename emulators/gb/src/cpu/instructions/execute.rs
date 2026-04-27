@@ -1037,16 +1037,16 @@ impl CPU {
     ///
     /// # Flags
     /// - `flag_mask::Z` : if set, the zero flag from the `flags` parameter will
-    ///     be copied into the CPU's registers.
+    ///   be copied into the CPU's registers.
     /// - `flag_mask::N` : if set, the substract flag from `flags` parameter
-    ///     will be copied into the CPU's registers.
+    ///   will be copied into the CPU's registers.
     /// - `flag_mask::H` : if set, the half-carry flag from `flags` parameter
-    ///     will be copied into the CPU's registers.
+    ///   will be copied into the CPU's registers.
     /// - `flag_mask::C` : if set, the carry flag from `flags` parameter will be
-    ///     copied into the CPU's registers.
+    ///   copied into the CPU's registers.
     /// - `flag_mask::ALL` : bitwise OR of the `Z`, `N`, `H` and `C` masks,
-    ///     this will copy all the flags from the `flags` parameter into the
-    ///     CPU's registers.
+    ///   this will copy all the flags from the `flags` parameter into the
+    ///   CPU's registers.
     ///
     /// # Example
     /// ```no_run
