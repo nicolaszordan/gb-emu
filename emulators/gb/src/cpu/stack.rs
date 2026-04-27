@@ -112,19 +112,19 @@ mod tests {
         assert_eq!(cpu.sp, 0xFFF8);
         assert_eq!(ram.mem[0xFFF8..=0xFFF9], [0xBC, 0x9A]);
 
-        assert_eq!(cpu.stack().pop_word(&mut ram), 0x9ABC);
+        assert_eq!(cpu.stack().pop_word(&ram), 0x9ABC);
         assert_eq!(cpu.sp, 0xFFFA);
 
-        assert_eq!(cpu.stack().pop_word(&mut ram), 0x5678);
+        assert_eq!(cpu.stack().pop_word(&ram), 0x5678);
         assert_eq!(cpu.sp, 0xFFFC);
 
-        assert_eq!(cpu.stack().pop_word(&mut ram), 0x1234);
+        assert_eq!(cpu.stack().pop_word(&ram), 0x1234);
         assert_eq!(cpu.sp, 0xFFFE);
 
-        assert_eq!(cpu.stack().pop_word(&mut ram), 0x0000); // "invalid" pop! -- gameboy doesn't prevent this so we just circle back
+        assert_eq!(cpu.stack().pop_word(&ram), 0x0000); // "invalid" pop! -- gameboy doesn't prevent this so we just circle back
         assert_eq!(cpu.sp, 0x0000);
 
-        assert_eq!(cpu.stack().pop_word(&mut ram), 0x0000); // "invalid" pop!
+        assert_eq!(cpu.stack().pop_word(&ram), 0x0000); // "invalid" pop!
         assert_eq!(cpu.sp, 0x0002);
     }
 
@@ -137,12 +137,12 @@ mod tests {
 
         cpu.stack().push_word(&mut ram, 0x1234);
         assert_eq!(cpu.sp, 0xFFFC); // sp is dec after the push
-        assert_eq!(cpu.stack().peek_word(&mut ram), 0x1234);
+        assert_eq!(cpu.stack().peek_word(&ram), 0x1234);
         assert_eq!(cpu.sp, 0xFFFC); // sp should be unchanged
 
         cpu.stack().push_word(&mut ram, 0x5678);
         assert_eq!(cpu.sp, 0xFFFA); // sp is dec again after the push
-        assert_eq!(cpu.stack().peek_word(&mut ram), 0x5678);
+        assert_eq!(cpu.stack().peek_word(&ram), 0x5678);
         assert_eq!(cpu.sp, 0xFFFA); // sp should be unchanged
     }
 }
