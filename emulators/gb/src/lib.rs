@@ -17,8 +17,9 @@ impl GameBoy {
         }
     }
 
-    pub fn step(&mut self) -> Result<(), cpu::Error> {
-        let _cycles = self.cpu.step(&mut self.mem)?;
+    // dummy error type for now
+    pub fn step(&mut self) -> Result<(), ()> {
+        let _cycles = self.cpu.step(&mut self.mem);
         // self.mb.step(cycles).unwrap();
 
         Ok(())

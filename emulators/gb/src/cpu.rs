@@ -7,12 +7,6 @@ use emu::MemoryBus;
 use registers::Registers;
 use stack::StackControler;
 
-#[derive(Debug)]
-pub enum Error {
-    // FIXME: doesn't implement std::err::Error and std::fmt::Display
-    InvalidOpcode(u8),
-}
-
 #[derive(Debug, PartialEq, Eq)]
 pub struct CPU {
     /// CPU Registers
@@ -43,12 +37,12 @@ impl CPU {
         }
     }
 
-    pub fn step<M: MemoryBus>(&mut self, mem_bus: &mut M) -> Result<u32, Error> {
+    pub fn step<M: MemoryBus>(&mut self, mem_bus: &mut M) -> u32 {
         let opcode = self.fetch_byte(mem_bus);
-        let cycles = self.execute_instruction(mem_bus, opcode)?;
+        let cycles = self.execute_instruction(mem_bus, opcode);
         // self.interrupt_check(mem_bus);
         self.update_ime();
-        Ok(cycles)
+        cycles
     }
 
     // fn interrupt_check<M: MemoryBus>(&mut self, bus: &M) {
