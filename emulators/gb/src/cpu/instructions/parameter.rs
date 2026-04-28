@@ -128,9 +128,6 @@ pub enum LD8SrcParam {
     IndN16,
 }
 
-/// Note: N8 isn't a valid destination
-pub type LD8DstParam = LD8SrcParam;
-
 impl From<R8Param> for LD8SrcParam {
     fn from(value: R8Param) -> Self {
         Self::R8(value)
@@ -138,6 +135,27 @@ impl From<R8Param> for LD8SrcParam {
 }
 
 impl From<R16MemParam> for LD8SrcParam {
+    fn from(value: R16MemParam) -> Self {
+        Self::R16Mem(value)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LD8DstParam {
+    R8(R8Param),
+    R16Mem(R16MemParam),
+    IndHighMemC,
+    IndHighMemA8,
+    IndN16,
+}
+
+impl From<R8Param> for LD8DstParam {
+    fn from(value: R8Param) -> Self {
+        Self::R8(value)
+    }
+}
+
+impl From<R16MemParam> for LD8DstParam {
     fn from(value: R16MemParam) -> Self {
         Self::R16Mem(value)
     }
@@ -180,7 +198,8 @@ pub enum CallParam {
     /// instruction as an absolute address for the call.
     N16,
 
-    /// Designate a parameter using
+    /// Designate a parameter using a jump vector table. Values go from 0x00
+    /// to 0x38 with a step of 0x08.
     VEC(u16),
 }
 

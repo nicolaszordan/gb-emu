@@ -124,6 +124,23 @@ impl From<LD8SrcParam> for Operand8 {
     }
 }
 
+impl From<LD8DstParam> for Operand8 {
+    fn from(value: LD8DstParam) -> Self {
+        match value {
+            LD8DstParam::R8(r8) => Self::from(r8),
+            LD8DstParam::R16Mem(r16_mem) => match r16_mem {
+                R16MemParam::IndBC => Self::IndBC,
+                R16MemParam::IndDE => Self::IndDE,
+                R16MemParam::IndHLi => Self::IndHLi,
+                R16MemParam::IndHLd => Self::IndHLd,
+            },
+            LD8DstParam::IndHighMemC => Self::IndHighMemC,
+            LD8DstParam::IndHighMemA8 => Self::IndHighMemA8,
+            LD8DstParam::IndN16 => Self::IndN16,
+        }
+    }
+}
+
 impl From<ALU8Param> for Operand8 {
     fn from(value: ALU8Param) -> Self {
         match value {
