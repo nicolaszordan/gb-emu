@@ -93,7 +93,7 @@ impl CPU {
     /// ```
     fn fetch_byte<M: MemoryBus>(&mut self, mem_bus: &M) -> u8 {
         let value = mem_bus.read(self.pc);
-        self.pc += 1;
+        self.pc = self.pc.wrapping_add(1);
         value
     }
 
@@ -116,7 +116,7 @@ impl CPU {
     /// ```
     fn fetch_word<M: MemoryBus>(&mut self, mem_bus: &M) -> u16 {
         let value = mem_bus.read_word(self.pc);
-        self.pc += 2;
+        self.pc = self.pc.wrapping_add(2);
         value
     }
 }
@@ -173,11 +173,14 @@ mod tests {
         let mut cpu = CPU::new();
         let mut bus = MockBus::new();
 
-        cpu.pc = 0x0000;
+        cpu.pc = 0xFFFF;
+        bus.mem[0xFFFF] = 0xEF;
         bus.mem[0x0000] = 0x12;
         bus.mem[0x0001] = 0x34;
         bus.mem[0x0002] = 0x56;
 
+        assert_eq!(cpu.fetch_byte(&bus), 0xEF);
+        assert_eq!(cpu.pc, 0x0000);
         assert_eq!(cpu.fetch_byte(&bus), 0x12);
         assert_eq!(cpu.pc, 0x0001);
         assert_eq!(cpu.fetch_byte(&bus), 0x34);
@@ -191,12 +194,16 @@ mod tests {
         let mut cpu = CPU::new();
         let mut bus = MockBus::new();
 
-        cpu.pc = 0x0000;
+        cpu.pc = 0xFFFE;
+        bus.mem[0xFFFE] = 0xEF; // lo
+        bus.mem[0xFFFF] = 0xCD; // hi
         bus.mem[0x0000] = 0x34; // lo
         bus.mem[0x0001] = 0x12; // hi
         bus.mem[0x0002] = 0x78; // lo
         bus.mem[0x0003] = 0x56; // hi
 
+        assert_eq!(cpu.fetch_word(&bus), 0xCDEF);
+        assert_eq!(cpu.pc, 0x0000);
         assert_eq!(cpu.fetch_word(&bus), 0x1234);
         assert_eq!(cpu.pc, 0x0002);
         assert_eq!(cpu.fetch_word(&bus), 0x5678);
