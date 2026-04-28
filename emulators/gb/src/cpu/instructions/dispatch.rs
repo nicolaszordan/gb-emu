@@ -114,6 +114,7 @@ impl CPU {
         mem_bus: &mut M,
         opcode: u8,
     ) -> u32 {
+        // NOTE: all extended hanlders return 0 => we're ignoring their return value and just return the cycles from the meta table.
         match opcode {
             0x00..=0x3F => self.instr_ext_bit_shift(
                 mem_bus,
