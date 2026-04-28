@@ -80,7 +80,7 @@ impl CPU {
                 self.instr_alu(mem_bus, ALUOperation::from(opcode >> 3), ALU8Param::N8)
             }
             0xC7 | 0xCF | 0xD7 | 0xDF | 0xE7 | 0xEF | 0xF7 | 0xFF => {
-                self.instr_call(mem_bus, CallParam::VEC(opcode as u16 - 0xC7))
+                self.instr_call(mem_bus, CallParam::VEC(opcode as u16 & 0b0011_1000))
             }
             0xC9 => self.instr_ret(mem_bus),
             0xCB => self.instr_prefix(mem_bus),
@@ -100,6 +100,7 @@ impl CPU {
             0xFB => self.instr_ei(),
 
             0xD3 | 0xE3 | 0xE4 | 0xF4 | 0xDB | 0xEB | 0xEC | 0xFC | 0xDD | 0xED | 0xFD => {
+                // TODO: this  panic! will be changed when we implement CPU states to enter a "bricked" state instead of panicking.
                 panic!("Invalid opcode: 0x{:02X}", opcode);
             }
         };
