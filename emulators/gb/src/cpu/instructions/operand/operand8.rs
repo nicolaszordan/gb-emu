@@ -2,7 +2,9 @@ use crate::cpu::CPU;
 use crate::cpu::HIGH_MEM_OFFSET;
 use crate::cpu::alu;
 
-use crate::cpu::instructions::parameter::*;
+use crate::cpu::instructions::parameter::{
+    ALU8Param, LD8DstParam, LD8SrcParam, R8Param, R16MemParam,
+};
 
 use emu::MemoryBus;
 

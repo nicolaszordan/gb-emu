@@ -1,5 +1,8 @@
 use crate::cpu::CPU;
-use crate::cpu::instructions::parameter::*;
+
+use crate::cpu::instructions::parameter::{
+    AddSPe8DstParam, CallParam, JumpParam, LD16DstParam, LD16SrcParam, R16Param, R16StackParam,
+};
 
 use emu::MemoryBus;
 
