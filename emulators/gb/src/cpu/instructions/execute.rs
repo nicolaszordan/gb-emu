@@ -822,7 +822,7 @@ impl CPU {
     /// ```
     pub(crate) fn instr_rotate_acc<M: MemoryBus>(
         &mut self,
-        bus: &mut M, // we need the bus for instr_ext_bit_shift even though we will never read/write from mem.
+        bus: &mut M, // bus is required by `instr_ext_bit_shift`'s signature but `instr_rotate_acc` only operates on register A
         operation: BitRotateOperation,
     ) -> u32 {
         self.instr_ext_bit_shift(bus, BitShiftOperation::Rotate(operation), R8Param::A);
