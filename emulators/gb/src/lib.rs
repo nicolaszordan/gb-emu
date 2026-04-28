@@ -17,12 +17,9 @@ impl GameBoy {
         }
     }
 
-    // dummy error type for now
-    pub fn step(&mut self) -> Result<(), ()> {
+    pub fn step(&mut self) {
         let _cycles = self.cpu.step(&mut self.mem);
-        // self.mb.step(cycles).unwrap();
-
-        Ok(())
+        // self.mb.step(cycles);
     }
 
     pub fn get_display_buffer(&self) -> &[u8] {
