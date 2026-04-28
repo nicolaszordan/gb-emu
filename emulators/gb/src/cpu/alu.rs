@@ -532,7 +532,7 @@ pub fn sra(value: u8) -> (u8, Flags) {
 /// - H : 0 (cleared).
 /// - C : 0 (cleared).
 pub fn swap(value: u8) -> (u8, Flags) {
-    let result = (value << 4) | (value >> 4);
+    let result = value.rotate_right(4);
     (
         result,
         Flags {
