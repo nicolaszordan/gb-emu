@@ -1302,7 +1302,7 @@ mod tests {
             use super::*;
 
             #[test]
-            fn disaptch_RST_00() {
+            fn RST_00() {
                 let mut cpu = CPU::new();
                 let mut bus = Bus::new();
 
@@ -1318,7 +1318,7 @@ mod tests {
             }
 
             #[test]
-            fn disaptch_RST_18() {
+            fn RST_18() {
                 let mut cpu = CPU::new();
                 let mut bus = Bus::new();
 
@@ -1334,7 +1334,7 @@ mod tests {
             }
 
             #[test]
-            fn disaptch_RST_30() {
+            fn RST_30() {
                 let mut cpu = CPU::new();
                 let mut bus = Bus::new();
 
@@ -1350,7 +1350,7 @@ mod tests {
             }
 
             #[test]
-            fn disaptch_RST_38() {
+            fn RST_38() {
                 let mut cpu = CPU::new();
                 let mut bus = Bus::new();
 
@@ -1397,7 +1397,7 @@ mod tests {
         }
 
         #[test]
-        fn CCL() {
+        fn CPL() {
             let mut cpu = CPU::new();
             let mut bus = Bus::new();
 
