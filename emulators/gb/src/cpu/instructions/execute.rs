@@ -1121,7 +1121,7 @@ mod flag_mask {
 #[cfg(test)]
 #[allow(non_snake_case)] // helps a lot for regs names
 mod tests {
-    use crate::cpu::tests::MockBus as Bus;
+    use emu::mem::test_utilities::MockMemoryBus as Bus;
 
     use super::*;
 

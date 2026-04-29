@@ -146,27 +146,8 @@ const HIGH_MEM_OFFSET: u16 = 0xFF00;
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    pub(crate) struct MockBus {
-        pub(crate) mem: [u8; 0x10000],
-    }
-
-    impl MockBus {
-        /// create a fully zero'ed bus
-        pub(crate) fn new() -> Self {
-            MockBus { mem: [0; 0x10000] }
-        }
-    }
-
-    impl MemoryBus for MockBus {
-        fn read(&self, address: u16) -> u8 {
-            self.mem[address as usize]
-        }
-
-        fn write(&mut self, address: u16, value: u8) {
-            self.mem[address as usize] = value
-        }
-    }
+    
+    use emu::mem::test_utilities::MockMemoryBus as MockBus;
 
     #[test]
     fn fetch_byte() {

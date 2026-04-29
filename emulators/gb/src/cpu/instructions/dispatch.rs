@@ -150,7 +150,7 @@ impl CPU {
 #[allow(non_snake_case)] // help A LOT to have upper cases for instr names and regs
 mod tests {
     use crate::cpu::IME;
-    use crate::cpu::tests::MockBus as Bus;
+    use emu::mem::test_utilities::MockMemoryBus as Bus;
 
     use super::*;
 

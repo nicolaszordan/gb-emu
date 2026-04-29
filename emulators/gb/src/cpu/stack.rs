@@ -77,7 +77,7 @@ impl<'a> StackController<'a> {
 mod tests {
     use super::*;
 
-    use crate::cpu::tests::MockBus as RAM;
+    use emu::mem::test_utilities::MockMemoryBus as RAM;
 
     struct CPU {
         sp: u16,

@@ -120,7 +120,7 @@ impl From<AddSPe8DstParam> for Operand16 {
 
 #[cfg(test)]
 mod tests {
-    use crate::cpu::tests::MockBus as Bus;
+    use emu::mem::test_utilities::MockMemoryBus as Bus;
 
     use super::*;
 
