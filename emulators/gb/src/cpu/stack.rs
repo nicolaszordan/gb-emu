@@ -76,6 +76,7 @@ impl<'a> StackController<'a> {
 }
 
 #[cfg(test)]
+#[allow(clippy::upper_case_acronyms)]
 mod tests {
     use super::*;
 

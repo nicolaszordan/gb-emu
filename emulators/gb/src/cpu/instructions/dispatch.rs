@@ -826,7 +826,7 @@ mod tests {
 
             cpu.sp = 0x0008;
             cpu.pc = 0x1234;
-            bus.write(cpu.pc, -0x0A as i8 as u8);
+            bus.write(cpu.pc, -0x0A_i8 as u8);
 
             let cycles = cpu.execute_instruction(&mut bus, 0xE8); // ADD SP E8
 
@@ -987,7 +987,7 @@ mod tests {
                 let mut bus = Bus::new();
 
                 cpu.pc = 0x1234;
-                bus.mem[0x1234] = -2 as i8 as u8;
+                bus.mem[0x1234] = -2_i8 as u8;
 
                 let cycles = cpu.execute_instruction(&mut bus, 0x18); // JR e8
 
@@ -1001,7 +1001,7 @@ mod tests {
                 let mut bus = Bus::new();
 
                 cpu.pc = 0x1234;
-                bus.mem[0x1234] = -0x11 as i8 as u8;
+                bus.mem[0x1234] = -0x11_i8 as u8;
 
                 cpu.registers.flags.z = true;
                 let cycles = cpu.execute_instruction(&mut bus, 0x28); // JR Z e8
@@ -1026,7 +1026,7 @@ mod tests {
                 let mut bus = Bus::new();
 
                 cpu.pc = 0x1234;
-                bus.mem[0x1234] = -0x11 as i8 as u8;
+                bus.mem[0x1234] = -0x11_i8 as u8;
 
                 cpu.registers.flags.c = true;
                 let cycles = cpu.execute_instruction(&mut bus, 0x30); // JR NC e8
@@ -1127,7 +1127,7 @@ mod tests {
         }
     }
 
-    mod call {
+    mod func {
         use super::*;
 
         mod call {

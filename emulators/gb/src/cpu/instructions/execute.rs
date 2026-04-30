@@ -1389,7 +1389,7 @@ mod tests {
             assert_eq!(cycles, 0);
             assert_eq!(cpu.pc, 0x5678);
 
-            bus.write(cpu.pc, -2 as i8 as u8);
+            bus.write(cpu.pc, -2_i8 as u8);
             let cycles = cpu.instr_jump(&bus, JumpParam::PCE8);
 
             assert_eq!(cycles, 0);
@@ -1429,7 +1429,7 @@ mod tests {
         }
     }
 
-    mod call {
+    mod func {
         use super::*;
 
         mod call {
@@ -1551,7 +1551,7 @@ mod tests {
                 cpu.sp = 0xFFFE;
                 cpu.stack().push_word(&mut bus, 0x5678); // fake call pc pushed onto the stack
 
-                let cycles = cpu.instr_reti(&mut bus);
+                let cycles = cpu.instr_reti(&bus);
 
                 assert_eq!(cycles, 0);
                 assert_eq!(cpu.pc, 0x5678);
@@ -2039,7 +2039,7 @@ mod tests {
                     cpu.sp = 0x0000;
                     cpu.pc = 0x0001;
 
-                    bus.write(cpu.pc, -8 as i8 as u8);
+                    bus.write(cpu.pc, -8_i8 as u8);
 
                     let cycles = cpu.instr_add_spe8(&mut bus, AddSPe8DstParam::HL);
 
@@ -2073,7 +2073,7 @@ mod tests {
 
                 assert_eq!(cycles, 8);
                 assert_eq!(cpu.registers.d, 0b0010_1100); // the RL D instruction should have been executed correctly
-                assert_eq!(cpu.registers.flags.c, true); // the carry flag should have been set by the RL D instruction
+                assert!(cpu.registers.flags.c); // the carry flag should have been set by the RL D instruction
                 assert_eq!(cpu.pc, 0x0002); // pc should have moved forward by 1 to read the prefix byte
             }
             #[test]
