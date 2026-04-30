@@ -375,7 +375,7 @@ impl CPU {
     /// cpu.instr_call(&mut bus, CALLParam::N16);
     /// assert_eq!(cpu.pc, 0x1234);
     ///
-    /// cpu.instr_reti(&mut bus);
+    /// cpu.instr_reti(&bus);
     ///
     /// assert_eq!(cpu.pc, 0x0102); // pc is back to the instruction after the call
     /// assert!(matches!(cpu.ime, IME::Enabled)); // IME is enabled
@@ -1429,7 +1429,7 @@ mod tests {
         }
     }
 
-    mod func {
+    mod call_ret {
         use super::*;
 
         mod call {

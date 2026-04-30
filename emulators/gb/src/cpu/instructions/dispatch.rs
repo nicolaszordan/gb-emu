@@ -1127,7 +1127,7 @@ mod tests {
         }
     }
 
-    mod func {
+    mod call_ret {
         use super::*;
 
         mod call {

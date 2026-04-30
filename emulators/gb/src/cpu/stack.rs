@@ -76,7 +76,7 @@ impl<'a> StackController<'a> {
 }
 
 #[cfg(test)]
-#[allow(clippy::upper_case_acronyms)]
+#[allow(clippy::upper_case_acronyms)] // we're suppressing this lint to keep the naming consistent with the pan docs
 mod tests {
     use super::*;
 
