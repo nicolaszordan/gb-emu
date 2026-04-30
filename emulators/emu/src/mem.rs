@@ -96,6 +96,12 @@ pub mod test_utilities {
         }
     }
 
+    impl Default for MockMemoryBus {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     impl MemoryBus for MockMemoryBus {
         fn read(&self, address: u16) -> u8 {
             self.mem[address as usize]
