@@ -38,7 +38,8 @@ impl Registers {
     /// Creates a new [`Registers`] with all registers initialised to `0`.
     ///
     /// # Examples
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let regs = Registers::new();
     /// assert_eq!(regs.a, 0x00);
     /// assert!(!regs.flags.z);
@@ -55,8 +56,9 @@ impl Registers {
     /// For setting the value of `BC` see [`bc_set`](Self::bc_set).
     ///
     /// # Examples
-    /// ```no_run
-    /// let regs = Registers { b: 0x12, c: 0x34 ..Registers::new() };
+    ///
+    /// ```ignore
+    /// let regs = Registers { b: 0x12, c: 0x34, ..Registers::new() };
     ///
     /// assert_eq!(regs.bc_get(), 0x1234);
     /// ```
@@ -72,7 +74,8 @@ impl Registers {
     /// To read the value of `BC` see [`bc_get`](Self::bc_get).
     ///
     /// # Examples
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut regs = Registers::new();
     /// regs.bc_set(0x1234);
     ///
@@ -94,8 +97,9 @@ impl Registers {
     /// For setting the value of `DE` see [`de_set`](Self::de_set).
     ///
     /// # Examples
-    /// ```no_run
-    /// let regs = Registers { d: 0x12, e: 0x34 ..Registers::new() };
+    ///
+    /// ```ignore
+    /// let regs = Registers { d: 0x12, e: 0x34, ..Registers::new() };
     ///
     /// assert_eq!(regs.de_get(), 0x1234);
     /// ```
@@ -111,7 +115,8 @@ impl Registers {
     /// To read the value of `DE` see [`de_get`](Self::de_get).
     ///
     /// # Examples
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut regs = Registers::new();
     /// regs.de_set(0x1234);
     ///
@@ -133,8 +138,9 @@ impl Registers {
     /// For setting the value of `HL` see [`hl_set`](Self::hl_set).
     ///
     /// # Examples
-    /// ```no_run
-    /// let regs = Registers { h: 0x12, l: 0x34 ..Registers::new() };
+    ///
+    /// ```ignore
+    /// let regs = Registers { h: 0x12, l: 0x34, ..Registers::new() };
     ///
     /// assert_eq!(regs.hl_get(), 0x1234);
     /// ```
@@ -150,7 +156,8 @@ impl Registers {
     /// To read the value of `HL` see [`hl_get`](Self::hl_get).
     ///
     /// # Examples
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut regs = Registers::new();
     /// regs.hl_set(0x1234);
     ///
@@ -174,7 +181,8 @@ impl Registers {
     /// For setting the value of `AF` see [`af_set`](Self::af_set).
     ///
     /// # Examples
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let regs = Registers {
     ///     a: 0x12,
     ///     flags: Flags {
@@ -202,7 +210,8 @@ impl Registers {
     /// To read the value of `AF` see [`af_get`](Self::af_get).
     ///
     /// # Examples
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut regs = Registers::new();
     /// regs.af_set(0x1200 | 0b1100_1111); // the 4 lower bits are not evaluated for setting `F`
     ///

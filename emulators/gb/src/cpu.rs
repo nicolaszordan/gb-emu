@@ -9,7 +9,7 @@ use stack::StackController;
 
 #[allow(clippy::upper_case_acronyms)] // we're suppressing this lint to keep the naming consistent with the pan docs
 #[derive(Debug, PartialEq, Eq)]
-pub struct CPU {
+pub(crate) struct CPU {
     /// CPU Registers
     registers: Registers,
 
@@ -29,7 +29,7 @@ pub struct CPU {
 }
 
 impl CPU {
-    pub fn new() -> CPU {
+    pub(crate) fn new() -> CPU {
         CPU {
             registers: Registers::new(),
             sp: 0,
@@ -38,7 +38,7 @@ impl CPU {
         }
     }
 
-    pub fn step<M: MemoryBus>(&mut self, mem_bus: &mut M) -> u32 {
+    pub(crate) fn step<M: MemoryBus>(&mut self, mem_bus: &mut M) -> u32 {
         let opcode = self.fetch_byte(mem_bus);
         let cycles = self.execute_instruction(mem_bus, opcode);
         // self.interrupt_check(mem_bus);
@@ -77,7 +77,8 @@ impl CPU {
     /// Read the current byte at `pc` and increment `pc` to the next byte.
     ///
     /// # Example
-    /// ```no_run
+    /// 
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -89,7 +90,9 @@ impl CPU {
     /// assert_eq!(value, 0x12);
     /// assert_eq!(cpu.pc, 0x0001);
     ///
-    /// // the next call to `fetch` would yield 0x34 and move pc to 0x0002
+    /// let value = cpu.fetch(&bus);
+    /// assert_eq!(value, 0x34);
+    /// assert_eq!(cpu.pc, 0x0002);
     /// ```
     fn fetch_byte<M: MemoryBus>(&mut self, mem_bus: &M) -> u8 {
         let value = mem_bus.read(self.pc);
@@ -97,10 +100,11 @@ impl CPU {
         value
     }
 
-    /// Read the current word at `pc` and increment `pc` to the next word.
+    /// Read the current word pointed by `pc` and move `pc` to the next word.
     ///
     /// # Example
-    /// ```no_run
+    /// 
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -112,7 +116,9 @@ impl CPU {
     /// assert_eq!(value, 0x1234);
     /// assert_eq!(cpu.pc, 0x0002);
     ///
-    /// // the next call to `fetch_word` would yield 0x5678 and move pc to 0x0004
+    /// let value = cpu.fetch_word(&bus);
+    /// assert_eq!(value, 0x5678);
+    /// assert_eq!(cpu.pc, 0x0004);
     /// ```
     fn fetch_word<M: MemoryBus>(&mut self, mem_bus: &M) -> u16 {
         let value = mem_bus.read_word(self.pc);

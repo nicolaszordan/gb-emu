@@ -1,7 +1,8 @@
-mod cpu;
+pub(crate) mod cpu;
 // mod motherboard;
 mod mem;
 
+#[derive(Debug)]
 pub struct GameBoy {
     mem: mem::Bus,
     cpu: cpu::CPU,
@@ -53,6 +54,7 @@ impl Default for GameBoy {
     }
 }
 
+#[derive(Debug)]
 pub enum Button {
     A,
     B,
