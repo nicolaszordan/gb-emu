@@ -1,138 +1,199 @@
 mod alu;
 mod instructions;
 mod registers;
+mod stack;
 
 use emu::MemoryBus;
 use registers::Registers;
+use stack::StackController;
 
-pub struct CPU {
+#[allow(clippy::upper_case_acronyms)] // we're suppressing this lint to keep the naming consistent with the pan docs
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct CPU {
+    /// CPU Registers
     registers: Registers,
 
+    /// Stack Pointer
+    ///
+    /// Points to the top of the stack.
     sp: u16,
+
+    /// Program Counter
+    ///
+    /// Points to the current instruction being executed.
     pc: u16,
+
+    /// Interrupt Master Enable flag
+    ime: IME,
+    // state: CPUState, // for HALT and STOP states?
 }
 
 impl CPU {
-    pub fn new() -> CPU {
+    pub(crate) fn new() -> CPU {
         CPU {
             registers: Registers::new(),
             sp: 0,
             pc: 0,
+            ime: IME::Disabled,
         }
     }
 
-    pub fn step<M: MemoryBus>(&mut self, mem_bus: &mut M) -> u32 {
-        todo!();
-
-        // // this is just a rough outline of the step function
-        // let opcode = mem_bus.read(self.pc);
-        // let instruction = &UNPREFIXED_INSTRUCTIONS[opcode as usize];
-        // // (instruction.execute)(self);
-        // {
-        //     let flags = alu::bit(1, self.registers.a); // just an example of how the CPU might call the ALU for a BIT instruction
-        //     self.copy_flags::<{ flag_mask::Z | flag_mask::N | flag_mask::H }>(&flags);
-        // }
-        // {
-        //     let (result, flags) = alu::add(self.registers.a, self.registers.b); // just an example of how the CPU might call the ALU for an ADD instruction
-        //     self.registers.a = result;
-        //     self.copy_all_flags(&flags);
-        // }
-        // self.pc = self.pc.wrapping_add(instruction.bytes as u16);
-        // instruction.cycles[0] as u32
+    pub(crate) fn step<M: MemoryBus>(&mut self, mem_bus: &mut M) -> u32 {
+        let opcode = self.fetch_byte(mem_bus);
+        let cycles = self.execute_instruction(mem_bus, opcode);
+        // self.interrupt_check(mem_bus);
+        self.update_ime();
+        cycles
     }
 
-    /// Copy chosen `alu::Flags` into `CPU::registers` flags.
+    // fn interrupt_check<M: MemoryBus>(&mut self, bus: &M) {
+    //     if matches!(self.ime, IME::Enabled) {
+    //         let pending_irqs = self.get_pending_interrupts(bus);
+    //         if pending_irqs != 0 {}
+    //     }
+    // }
+
+    // /// Get the pending enabled interrupts.
+    // fn get_pending_interrupts<M: MemoryBus>(&self, bus: &M) -> u8 {
+    //     let ir = bus.read(IF_ADDR);
+    //     let ie = bus.read(IE_ADDR);
+    //     ir & ie
+    // }
+
+    /// Update IME's state from Pending to Enabled
     ///
-    /// Use `FLAG_MASK` to chose what flags you want to copy into the CPU's
-    /// flag register. Helper masks can be found in the module `flag_mask`
-    ///
-    /// # Flags
-    /// - `flag_mask::Z` : if set, the zero flag from the `flags` parameter will
-    ///     be copied into the CPU's registers.
-    /// - `flag_mask::N` : if set, the substract flag from `flags` parameter
-    ///     will be copied into the CPU's registers.
-    /// - `flag_mask::H` : if set, the half-carry flag from `flags` parameter
-    ///     will be copied into the CPU's registers.
-    /// - `flag_mask::C` : if set, the carry flag from `flags` parameter will be
-    ///     copied into the CPU's registers.
-    /// - `flag_mask::ALL` : bitwise OR of the `Z`, `N`, `H` and `C` masks,
-    ///     this will copy all the flags from the `flags` parameter into the
-    ///     CPU's registers.
+    /// This is used to emulate the 1 instruction delay after executing the EI
+    /// instruction before the IME is actually enabled.
+    fn update_ime(&mut self) {
+        if matches!(self.ime, IME::PendingEnable) {
+            self.ime = IME::Enabled;
+        }
+    }
+
+    fn stack(&mut self) -> StackController<'_> {
+        StackController::new(&mut self.sp)
+    }
+
+    /// Read the current byte at `pc` and increment `pc` to the next byte.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
-    /// let (_, flags) = alu::sub(0, 1);
-    /// cpu.copy_flags::<{flag_mask::Z | flag_mask::N | flag_mask::H | flag_mask::C}>(flags); // `flag_mask::ALL` could also have been used here
-    /// assert!(!cpu.registers.flags().zero())
-    /// assert!(cpu.registers.flags().substract())
-    /// assert!(cpu.registers.flags().half_carry())
-    /// assert!(cpu.registers.flags().carry())
+    /// let mut bus = Bus::new();
+    ///
+    /// cpu.pc = 0x0000;
+    /// bus.write(0x0000, 0x12);
+    /// bus.write(0x0001, 0x34);
+    ///
+    /// let value = cpu.fetch(&bus);
+    /// assert_eq!(value, 0x12);
+    /// assert_eq!(cpu.pc, 0x0001);
+    ///
+    /// let value = cpu.fetch(&bus);
+    /// assert_eq!(value, 0x34);
+    /// assert_eq!(cpu.pc, 0x0002);
     /// ```
-    fn copy_flags<const FLAG_MASK: u8>(&mut self, flags: &alu::Flags) {
-        if FLAG_MASK & flag_mask::Z != 0 {
-            self.registers.flags_mut().zero().set(flags.zero().unwrap());
-        }
-        if FLAG_MASK & flag_mask::N != 0 {
-            self.registers.flags_mut().subtract().set(flags.subtract().unwrap());
-        }
-        if FLAG_MASK & flag_mask::H != 0 {
-            self.registers
-                .flags_mut()
-                .half_carry()
-                .set(flags.half_carry().unwrap());
-        }
-        if FLAG_MASK & flag_mask::C != 0 {
-            self.registers.flags_mut().carry().set(flags.carry().unwrap());
-        }
+    fn fetch_byte<M: MemoryBus>(&mut self, mem_bus: &M) -> u8 {
+        let value = mem_bus.read(self.pc);
+        self.pc = self.pc.wrapping_add(1);
+        value
     }
- 
-    /// Copy all given `alu::Flags` into `CPU::registers` flags.
-    /// 
-    /// See `CPU::copy_flags` for more granularity over which flag is copied or
-    /// not.
-    /// 
+
+    /// Read the current word pointed by `pc` and move `pc` to the next word.
+    ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
-    /// let (_, flags) = alu::sub(0, 1);
-    /// cpu.copy_all_flags(flags);
-    /// assert!(!cpu.registers.flags().zero())
-    /// assert!(cpu.registers.flags().substract())
-    /// assert!(cpu.registers.flags().half_carry())
-    /// assert!(cpu.registers.flags().carry())
+    /// let mut bus = Bus::new();
+    ///
+    /// cpu.pc = 0x0000;
+    /// bus.write_word(0x0000, 0x1234);
+    /// bus.write_word(0x0002, 0x5678);
+    ///
+    /// let value = cpu.fetch_word(&bus);
+    /// assert_eq!(value, 0x1234);
+    /// assert_eq!(cpu.pc, 0x0002);
+    ///
+    /// let value = cpu.fetch_word(&bus);
+    /// assert_eq!(value, 0x5678);
+    /// assert_eq!(cpu.pc, 0x0004);
     /// ```
-    fn copy_all_flags(&mut self, flags: &alu::Flags) {
-        self.copy_flags::<{flag_mask::ALL}>(flags)
+    fn fetch_word<M: MemoryBus>(&mut self, mem_bus: &M) -> u16 {
+        let value = mem_bus.read_word(self.pc);
+        self.pc = self.pc.wrapping_add(2);
+        value
     }
 }
 
-/// helper module for the `CPU::apply_mask` function
-///
-/// # Masks
-/// - `flag_mask::Z` : mask for the zero flag
-/// - `flag_mask::N` : mask for the substract flag
-/// - `flag_mask::H` : mask for the the half-carry flag
-/// - `flag_mask::C` : mask for the carry flag
-/// - `flag_mask::ALL` : bitwise OR of the `Z`, `N`, `H` and `C` masks
-mod flag_mask {
-    /// mask for the zero flag
-    pub(crate) const Z: u8 = 0b0001;
+#[allow(clippy::upper_case_acronyms)] // we're suppressing this lint to keep the naming consistent with the pan docs
+#[derive(Debug, PartialEq, Eq)]
+enum IME {
+    /// Interrupt Master Enable flag is reset, and will be set after the next
+    /// instruction is executed.
+    PendingEnable,
 
-    /// mask for the substract flag
-    pub(crate) const N: u8 = 0b0010;
+    /// Interrupt Master Enable flag is set.
+    Enabled,
 
-    /// mask for the half-carry flag
-    pub(crate) const H: u8 = 0b0100;
-
-    /// mask for the carry flag
-    pub(crate) const C: u8 = 0b1000;
-
-    /// bitwise OR of the `Z`, `N`, `H` and `C` masks
-    pub(crate) const ALL: u8 = Z | N | H | C;
+    /// Interrupt Master Enable flag is reset.
+    Disabled,
 }
+
+const HIGH_MEM_OFFSET: u16 = 0xFF00;
+
+// /// Address of the Interrupt Request Flag register (IF).
+// const IF_ADDR: u16 = 0xFF0F;
+
+// /// Address of the Interrupt Enable register (IE).
+// const IE_ADDR: u16 = 0xFFFF;
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use emu::mem::test_utilities::MockMemoryBus as MockBus;
+
+    #[test]
+    fn fetch_byte() {
+        let mut cpu = CPU::new();
+        let mut bus = MockBus::new();
+
+        cpu.pc = 0xFFFF;
+        bus.mem[0xFFFF] = 0xEF;
+        bus.mem[0x0000] = 0x12;
+        bus.mem[0x0001] = 0x34;
+        bus.mem[0x0002] = 0x56;
+
+        assert_eq!(cpu.fetch_byte(&bus), 0xEF);
+        assert_eq!(cpu.pc, 0x0000);
+        assert_eq!(cpu.fetch_byte(&bus), 0x12);
+        assert_eq!(cpu.pc, 0x0001);
+        assert_eq!(cpu.fetch_byte(&bus), 0x34);
+        assert_eq!(cpu.pc, 0x0002);
+        assert_eq!(cpu.fetch_byte(&bus), 0x56);
+        assert_eq!(cpu.pc, 0x0003);
+    }
+
+    #[test]
+    fn fetch_word() {
+        let mut cpu = CPU::new();
+        let mut bus = MockBus::new();
+
+        cpu.pc = 0xFFFE;
+        bus.mem[0xFFFE] = 0xEF; // lo
+        bus.mem[0xFFFF] = 0xCD; // hi
+        bus.mem[0x0000] = 0x34; // lo
+        bus.mem[0x0001] = 0x12; // hi
+        bus.mem[0x0002] = 0x78; // lo
+        bus.mem[0x0003] = 0x56; // hi
+
+        assert_eq!(cpu.fetch_word(&bus), 0xCDEF);
+        assert_eq!(cpu.pc, 0x0000);
+        assert_eq!(cpu.fetch_word(&bus), 0x1234);
+        assert_eq!(cpu.pc, 0x0002);
+        assert_eq!(cpu.fetch_word(&bus), 0x5678);
+        assert_eq!(cpu.pc, 0x0004);
+    }
 }

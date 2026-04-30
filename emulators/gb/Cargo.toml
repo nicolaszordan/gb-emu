@@ -5,3 +5,6 @@ edition = "2024"
 
 [dependencies]
 emu = { path = "../emu" }
+
+[dev-dependencies]
+emu = { path = "../emu", features = ["test-utilities"] }

@@ -1,15 +1,12 @@
-mod cpu;
+pub(crate) mod cpu;
+// mod motherboard;
 mod mem;
-// mod apu;
-// mod ppu;
-// mod timer;
 
+#[derive(Debug)]
 pub struct GameBoy {
     mem: mem::Bus,
     cpu: cpu::CPU,
-    // ppu: ppu::PPU,
-    // apu: apu::APU,
-    // timer: timer::Timer,
+    // mb: MotherBoard,
 }
 
 impl GameBoy {
@@ -17,17 +14,13 @@ impl GameBoy {
         GameBoy {
             mem: mem::Bus::new(),
             cpu: cpu::CPU::new(),
-            // ppu: ppu::PPU::new(),
-            // apu: apu::APU::new(),
-            // timer: timer::Timer::new(),
+            // mb: MotherBoard::new(),
         }
     }
 
-    pub fn tick(&mut self) {
-        let cycles = self.cpu.step(&mut self.mem);
-        // self.ppu.step(&mut self.mem, cycles);
-        // self.apu.step(&mut self.mem, cycles);
-        // self.timer.step(&mut self.mem, cycles);
+    pub fn step(&mut self) {
+        let _cycles = self.cpu.step(&mut self.mem);
+        // self.mb.step(cycles);
     }
 
     pub fn get_display_buffer(&self) -> &[u8] {
@@ -55,6 +48,13 @@ impl GameBoy {
     }
 }
 
+impl Default for GameBoy {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Debug)]
 pub enum Button {
     A,
     B,
