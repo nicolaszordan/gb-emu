@@ -1,9 +1,12 @@
 pub trait MemoryBus {
     /// Read a single byte from the given `address`.
     ///
-    /// ## Example
+    /// # Example
+    ///
     /// ```
-    /// let mut bus = Bus::new();
+    /// # use emu::mem::test_utilities::MockMemoryBus;
+    /// # use emu::MemoryBus;
+    /// let mut bus = MockMemoryBus::new(); // implements MemoryBus trait
     ///
     /// bus.write(0x1234, 0x56);
     /// assert_eq!(bus.read(0x1234), 0x56);
@@ -12,9 +15,12 @@ pub trait MemoryBus {
 
     /// Write a single byte to the given `address`.
     ///
-    /// ## Example
-    /// ```no_run
-    /// let mut bus = Bus::new();
+    /// # Example
+    ///
+    /// ```
+    /// # use emu::mem::test_utilities::MockMemoryBus;
+    /// # use emu::MemoryBus;
+    /// let mut bus = MockMemoryBus::new(); // implements MemoryBus trait
     ///
     /// bus.write(0x1234, 0x56);
     /// assert_eq!(bus.read(0x1234), 0x56);
@@ -25,12 +31,15 @@ pub trait MemoryBus {
     ///
     /// The word is assumed to be in little-endian with the low byte at the
     /// given `address` and the high byte at `address` + 1.
-    /// 
+    ///
     /// Note that this function wraps arround in case of overflow.
     ///
-    /// ## Example
+    /// # Example
+    ///
     /// ```
-    /// let mut bus = Bus::new();
+    /// # use emu::mem::test_utilities::MockMemoryBus;
+    /// # use emu::MemoryBus;
+    /// let mut bus = MockMemoryBus::new(); // implements MemoryBus trait
     ///
     /// bus.write(0x1234, 0x56);
     /// bus.write(0x1235, 0x78);
@@ -48,10 +57,13 @@ pub trait MemoryBus {
     /// `address` and the high byte at `address` + 1.
     ///
     /// Note that this function wraps arround in case of overflow.
-    /// 
-    /// ## Example
-    /// ```no_run
-    /// let mut bus = Bus::new();
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use emu::mem::test_utilities::MockMemoryBus;
+    /// # use emu::MemoryBus;
+    /// let mut bus = MockMemoryBus::new(); // implements MemoryBus trait
     ///
     /// bus.write_word(0x1234, 0x5678);
     /// assert_eq!(bus.read(0x1234), 0x78); // low byte
@@ -69,34 +81,40 @@ pub trait MemoryBus {
     }
 }
 
-#[cfg(test)]
-mod tests {
+#[cfg(any(test, feature = "test-utilities"))]
+pub mod test_utilities {
     use super::*;
 
-    struct MockMemoryBus {
-        memory: [u8; 0x10000],
+    pub struct MockMemoryBus {
+        pub mem: [u8; 0x10000],
     }
 
     impl MockMemoryBus {
-        fn new() -> Self {
-            Self {
-                memory: [0; 0x10000],
-            }
+        /// create a fully zero'ed bus
+        pub fn new() -> Self {
+            MockMemoryBus { mem: [0; 0x10000] }
         }
     }
 
     impl MemoryBus for MockMemoryBus {
         fn read(&self, address: u16) -> u8 {
-            self.memory[address as usize]
+            self.mem[address as usize]
         }
 
         fn write(&mut self, address: u16, value: u8) {
-            self.memory[address as usize] = value
+            self.mem[address as usize] = value
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use test_utilities::MockMemoryBus;
 
     #[test]
-    fn memory_bus_read_word() {
+    fn read_word() {
         let mut bus = MockMemoryBus::new();
         bus.write(0x00, 0x34); // lo
         bus.write(0x01, 0x12); // hi
@@ -104,7 +122,7 @@ mod tests {
     }
 
     #[test]
-    fn memory_bus_write_word() {
+    fn write_word() {
         let mut bus = MockMemoryBus::new();
         bus.write_word(0x00, 0x1234);
         assert_eq!(bus.read(0x00), 0x34); // lo
@@ -112,7 +130,7 @@ mod tests {
     }
 
     #[test]
-    fn memory_bus_write_read_word() {
+    fn write_read_word() {
         let mut bus = MockMemoryBus::new();
         bus.write_word(0x00, 0x1234);
         assert_eq!(bus.read(0x00), 0x34); // lo
@@ -121,7 +139,7 @@ mod tests {
     }
 
     #[test]
-    fn memory_bus_read_range() {
+    fn read_range() {
         let mut bus = MockMemoryBus::new();
         bus.write(0x00, 0x12);
         bus.write(0x01, 0x34);

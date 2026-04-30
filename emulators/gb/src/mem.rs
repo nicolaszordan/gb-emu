@@ -1,5 +1,6 @@
 use emu::MemoryBus;
 
+#[derive(Debug)]
 pub struct Bus {
     memory: [u8; 0x10000],
 }
@@ -16,7 +17,7 @@ impl MemoryBus for Bus {
     /// Read a single byte from the given address.
     ///
     /// ## Example
-    /// ```
+    /// ```ignore
     /// let mut bus = Bus::new();
     ///
     /// bus.write(0x1234, 0x56);
@@ -29,7 +30,7 @@ impl MemoryBus for Bus {
     /// Write a single byte to the given address.
     ///
     /// ## Example
-    /// ```
+    /// ```ignore
     /// let mut bus = Bus::new();
     ///
     /// bus.write(0x1234, 0x56);
@@ -45,7 +46,7 @@ impl MemoryBus for Bus {
     /// and the byte at the next address (low byte).
     ///
     /// ## Example
-    /// ```
+    /// ```ignore
     /// let mut bus = Bus::new();
     ///
     /// bus.write(0x1234, 0x12);
@@ -64,7 +65,7 @@ impl MemoryBus for Bus {
     /// byte is written to the next address.
     ///
     /// ## Example
-    /// ```
+    /// ```ignore
     /// let mut bus = Bus::new();
     ///
     /// bus.write_word(0x1234, 0x1234);

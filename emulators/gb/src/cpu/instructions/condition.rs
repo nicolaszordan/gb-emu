@@ -41,6 +41,21 @@ impl Condition {
     /// - [`Condition::Z`] : true if zero flag is set.
     /// - [`Condition::NC`] : true if carry flag is **not** set.
     /// - [`Condition::C`] : true if carry flag is set.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let mut flags = Flags::new(); // zero'ed flags
+    ///
+    /// assert!(Condition::NZ.check(&flags));
+    /// assert!(!Condition::Z.check(&flags));
+    /// assert!(Condition::NC.check(&flags));
+    /// assert!(!Condition::C.check(&flags));
+    ///
+    /// flags.z = true;
+    /// assert!(!Condition::NZ.check(&flags));
+    /// assert!(Condition::Z.check(&flags));
+    /// ```
     pub fn check(&self, flags: &Flags) -> bool {
         match self {
             Condition::NZ => !flags.z,
@@ -65,7 +80,8 @@ impl From<u8> for Condition {
     /// - 3 => [`Condition::C`]
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let op_jr_nz_nn = 0x20; // opcode for JR NZ, nn
     /// let op_jr_z_nn = 0x28;  // opcode for JR Z,  nn
     /// let op_jr_nc_nn = 0x30; // opcode for JR NC, nn

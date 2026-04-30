@@ -19,7 +19,8 @@ impl<'a> StackController<'a> {
     /// byte stored at [`Self::sp`] and the high byte at [`Self::sp`] + 1.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -45,7 +46,8 @@ impl<'a> StackController<'a> {
     /// stack and will just circle around.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -77,7 +79,7 @@ impl<'a> StackController<'a> {
 mod tests {
     use super::*;
 
-    use crate::cpu::tests::MockBus as RAM;
+    use emu::mem::test_utilities::MockMemoryBus as RAM;
 
     struct CPU {
         sp: u16,

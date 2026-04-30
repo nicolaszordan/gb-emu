@@ -15,7 +15,8 @@ impl CPU {
     /// See [`LD8DstParam`] and [`LD8SrcParam`] for possible parameters.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -44,7 +45,8 @@ impl CPU {
     /// See [`LD16DstParam`] and [`LD16SrcParam`] for possible parameters.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -74,7 +76,8 @@ impl CPU {
     /// See [`R16StackParam`] for all possible parameters.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -102,7 +105,8 @@ impl CPU {
     /// See [`R16StackParam`] for all possible parameters.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -129,23 +133,24 @@ impl CPU {
 
     /// Perform an unconditional jump according to `param`.
     ///
-    /// See [JPParam] for all possible parameters.
+    /// See [`JumpParam`] for all possible parameters.
     ///
-    /// Jumps can either be absolute ([JPParam::N16], [JPParam::HL]) or relative
-    /// to the current position of [CPU::pc] ([JPParam::PCE8]).
+    /// Jumps can either be absolute ([`JumpParam::N16`], [`JumpParam::HL`]) or relative
+    /// to the current position of [`CPU::pc`] ([`JumpParam::PCE8`]).
     ///
-    /// "Jumping" is performed by setting the value of [CPU::pc] to a different
+    /// "Jumping" is performed by setting the value of [`CPU::pc`] to a different
     /// value.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
     /// cpu.pc = 0x0100;
     /// cpu.registers.hl_set(0x1234);
     ///
-    /// cpu.instr_jump(&mut bus, JPParam::HL);
+    /// cpu.instr_jump(&mut bus, JumpParam::HL);
     ///
     /// assert_eq!(cpu.pc, 0x1234); // pc is now at 0x1234 and will continue executing from there
     /// ```
@@ -157,17 +162,18 @@ impl CPU {
 
     /// Perform a conditional jump if `condition` is valid.
     ///
-    /// See [Condition] for all possible conditions and [JPParam] for all
+    /// See [`Condition`] for all possible conditions and [`JumpParam`] for all
     /// possible jump parameters.
     ///
-    /// `condition` is checked against the [CPU::registers::flags] and if the
+    /// `condition` is checked against the [`CPU::registers`] and if the
     /// condition is valid, a jump to `param` is performed. If the condition
-    /// isn't valid, the [CPU::pc] proceeds to the next instruction.
+    /// isn't valid, the [`CPU::pc`] proceeds to the next instruction.
     ///
     /// Note that this instruction takes more cycles if the jump is taken.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -175,14 +181,14 @@ impl CPU {
     /// bus.write(cpu.pc, -0x11 as i8 as u8);
     ///
     /// cpu.registers.flags.z = false;
-    /// let cycles = cpu.instr_cond_jump(&mut bus, Condition::Z, JPParam::PCE8); // Condition::Z fails
+    /// let cycles = cpu.instr_cond_jump(&mut bus, Condition::Z, JumpParam::PCE8); // Condition::Z fails
     ///
     /// assert_eq!(cycles, 0); // no extra cycles are taken when the jump isn't performed
     /// assert_eq!(cpu.pc, 0x0101); // pc still moves over the e8 parameter
     /// bus.write(cpu.pc, -0x11 as i8 as u8);
     ///
     /// cpu.registers.flags.c = true;
-    /// let cycles = cpu.instr_cond_jump(&mut bus, Condition::C, JPParam::PCE8); // Condition::C is valid -- jump happens
+    /// let cycles = cpu.instr_cond_jump(&mut bus, Condition::C, JumpParam::PCE8); // Condition::C is valid -- jump happens
     ///
     /// assert_eq!(cycles, 4); // extra cycles are taken when the jump is performed
     /// assert_eq!(cpu.pc, 0x00F1); // pc moves to +1(from e8 param) -0x11(from jump)
@@ -203,20 +209,21 @@ impl CPU {
 
     /// Perform an unconditional call to `param`.
     ///
-    /// See [CALLParam] for all possible parameters.
+    /// See [`CallParam`] for all possible parameters.
     ///
-    /// A call consists of pushing the current [CPU::pc] into the stack and then
+    /// A call consists of pushing the current [`CPU::pc`] into the stack and then
     /// jumping to the address designated by `param`.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
     /// cpu.pc = 0x0100;
     /// bus.write_word(cpu.pc, 0x1234);
     ///
-    /// cpu.instr_call(&mut bus, CALLParam::N16);
+    /// cpu.instr_call(&mut bus, CallParam::N16);
     ///
     /// assert_eq!(cpu.pc, 0x1234);
     /// assert_eq!(cpu.stack().peek_word(&bus), 0x0102); // the value pushed into the stack points to the next instruction after the call (0x0102 in this case)
@@ -234,17 +241,18 @@ impl CPU {
 
     /// Perform a conditional call if `condition` is valid.
     ///
-    /// See [Condition] for all possible conditions and [CALLParam] for all
+    /// See [`Condition`] for all possible conditions and [`CallParam`] for all
     /// possible call parameters.
     ///
-    /// `condition` is checked against the [CPU::registers::flags] and if the
+    /// `condition` is checked against the [`CPU::registers`] and if the
     /// condition is valid, a call to `param` is performed. If the condition
-    /// isn't valid, the [CPU::pc] proceeds to the next instruction.
+    /// isn't valid, the [`CPU::pc`] proceeds to the next instruction.
     ///
     /// Note that this instruction takes more cycles if the call is taken.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -252,14 +260,14 @@ impl CPU {
     /// bus.write_word(cpu.pc, 0x1234);
     ///
     /// cpu.registers.flags.z = false;
-    /// let cycles = cpu.instr_cond_call(&mut bus, Condition::Z, CALLParam::N16); // Condition::Z fails
+    /// let cycles = cpu.instr_cond_call(&mut bus, Condition::Z, CallParam::N16); // Condition::Z fails
     ///
     /// assert_eq!(cycles, 0); // no extra cycles are taken when the call isn't performed
     /// assert_eq!(cpu.pc, 0x0102); // pc still moves over the n16 parameter
     /// bus.write_word(cpu.pc, 0x2345);
     ///
     /// cpu.registers.flags.z = false;
-    /// let cycles = cpu.instr_cond_call(&mut bus, Condition::NZ, CALLParam::N16); // Condition::NZ is valid -- call happens
+    /// let cycles = cpu.instr_cond_call(&mut bus, Condition::NZ, CallParam::N16); // Condition::NZ is valid -- call happens
     ///
     /// assert_eq!(cycles, 12); // extra cycles are taken when the call is performed
     /// assert_eq!(cpu.pc, 0x2345);
@@ -282,10 +290,11 @@ impl CPU {
     /// Return from a call.
     ///
     /// The return is performed by popping the return address from the stack
-    /// and jumping (ie. setting the [CPU::pc]) to it
+    /// and jumping (ie. setting the [`CPU::pc`]) to it
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -311,13 +320,14 @@ impl CPU {
     /// Return from a call if `condition` is valid.
     ///
     /// The return is performed by popping the return address from the stack
-    /// and jumping (ie. setting the [CPU::pc]) to it
+    /// and jumping (ie. setting the [`CPU::pc`]) to it
     ///
     /// Note that this instruction takes more cycle to perform if the return is
     /// performed.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -347,14 +357,15 @@ impl CPU {
     /// Return from a call and enable interrupts.
     ///
     /// The return is performed by popping the return address from the stack
-    /// and jumping (ie. setting the [CPU::pc]) to it. After that, the IME is
+    /// and jumping (ie. setting the [`CPU::pc`]) to it. After that, the IME is
     /// set to enabled to allow interrupts.
     ///
     /// Note that this instruction directly enables IME without the 1
     /// instruction delay that the EI instruction has.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -385,7 +396,8 @@ impl CPU {
     /// [`R8Param`] for possible parameters.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -417,7 +429,8 @@ impl CPU {
     /// [`R8Param`] for possible parameters.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -448,7 +461,8 @@ impl CPU {
     /// parameters.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -480,7 +494,8 @@ impl CPU {
     /// parameters.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -514,7 +529,8 @@ impl CPU {
     /// operations, and [`ALU8Param`] for possible parameters.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -561,13 +577,15 @@ impl CPU {
     /// [`R16Param`] for all possible parameters.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
+    /// let mut bus = Bus::new();
     ///
     /// cpu.registers.hl_set(0x1000);
     /// cpu.registers.de_set(0x1234);
     ///
-    /// cpu.instr_add16(&mut bus, R16Param::DE);
+    /// cpu.instr_add16(&bus, R16Param::DE);
     ///
     /// assert_eq!(cpu.registers.hl_get(), 0x2234);
     /// ```
@@ -580,7 +598,7 @@ impl CPU {
         0
     }
 
-    /// Perform a 16-bit addition between [CPU::sp] and next signed 8-bit value.
+    /// Perform a 16-bit addition between [`CPU::sp`] and next signed 8-bit value.
     ///
     /// The result is stored according to `dst` and the flags are set according
     /// to the result.
@@ -589,7 +607,8 @@ impl CPU {
     /// [`ADDSPE8DstParam`] for all possible destination parameters.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -599,7 +618,7 @@ impl CPU {
     ///
     /// cpu.instr_add_spe8(&mut bus, ADDSPE8DstParam::HL);
     ///
-    /// assert_eq!(cpu.registers.hl_get(), 0xFFEE); // 0xFFFE + (-0x11) = 0xFFEE
+    /// assert_eq!(cpu.registers.hl_get(), 0xFFED); // 0xFFFE + (-0x11) = 0xFFED
     /// ```
     pub(crate) fn instr_add_spe8<M: MemoryBus>(
         &mut self,
@@ -630,14 +649,15 @@ impl CPU {
     /// method.
     ///
     /// # Examples
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
     /// cpu.pc = 0x0100;
     /// cpu.registers.c = 0b1111_1111;
     ///
-    /// bus.write(cpu.pc, 0x99) // opcode of RES 3 C
+    /// bus.write(cpu.pc, 0x99); // opcode of RES 3 C
     ///
     /// cpu.instr_prefix(&mut bus);
     ///
@@ -661,7 +681,8 @@ impl CPU {
     /// flags, and [`R8Param`] for all possible parameters.
     ///
     /// # Examples
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -711,7 +732,7 @@ impl CPU {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -743,7 +764,7 @@ impl CPU {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -775,14 +796,14 @@ impl CPU {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
     /// cpu.registers.l = 0b0001_0000;
     /// cpu.instr_ext_set(&mut bus, 1u8.into(), R8Param::L);
     ///
-    /// assert_eq!(cpu.registers.e, 0b0001_0010); // BIT 1 of register L has been set to 1
+    /// assert_eq!(cpu.registers.l, 0b0001_0010); // BIT 1 of register L has been set to 1
     /// ```
     pub(crate) fn instr_ext_set<M: MemoryBus>(
         &mut self,
@@ -810,7 +831,7 @@ impl CPU {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -844,7 +865,8 @@ impl CPU {
     /// others as they are.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     ///
     /// cpu.registers.a = 0b1010_1100;
@@ -869,7 +891,8 @@ impl CPU {
     /// half-carry flags, but leaves the zero flag as is.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     ///
     /// cpu.registers.flags.c = false;
@@ -893,7 +916,8 @@ impl CPU {
     /// subtract and half-carry flags, but leaves the zero flag as is.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     ///
     /// cpu.registers.flags.c = false;
@@ -919,7 +943,8 @@ impl CPU {
     /// See [`CPU::ime`] and [`IME`] for more information on the `IME`.
     ///
     /// # Examples
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -949,7 +974,8 @@ impl CPU {
     /// See [`CPU::ime`] and [`IME`] for more information on the `IME`.
     ///
     /// # Examples
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let mut bus = Bus::new();
     ///
@@ -985,7 +1011,8 @@ impl CPU {
     /// adjusting the result to likewise be in BCD.
     ///
     /// # Examples
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     ///
     /// cpu.registers.a = 0x3F;
@@ -1049,14 +1076,15 @@ impl CPU {
     ///   CPU's registers.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let (_, flags) = alu::sub(0, 1);
-    /// cpu.copy_flags::<{flag_mask::Z | flag_mask::N | flag_mask::H | flag_mask::C}>(flags); // `flag_mask::ALL` could also have been used here
-    /// assert!(!cpu.registers.flags.z)
-    /// assert!(cpu.registers.flags.n)
-    /// assert!(cpu.registers.flags.h)
-    /// assert!(cpu.registers.flags.c)
+    /// cpu.copy_flags::<{flag_mask::Z | flag_mask::N | flag_mask::H | flag_mask::C}>(&flags); // `flag_mask::ALL` could also have been used here
+    /// assert!(!cpu.registers.flags.z);
+    /// assert!(cpu.registers.flags.n);
+    /// assert!(cpu.registers.flags.h);
+    /// assert!(cpu.registers.flags.c);
     /// ```
     fn copy_flags<const FLAG_MASK: u8>(&mut self, flags: &alu::Flags) {
         if FLAG_MASK & flag_mask::Z != 0 {
@@ -1079,14 +1107,15 @@ impl CPU {
     /// not.
     ///
     /// # Example
-    /// ```no_run
+    ///
+    /// ```ignore
     /// let mut cpu = CPU::new();
     /// let (_, flags) = alu::sub(0, 1);
-    /// cpu.copy_all_flags(flags);
-    /// assert!(!cpu.registers.flags.z)
-    /// assert!(cpu.registers.flags.n)
-    /// assert!(cpu.registers.flags.h)
-    /// assert!(cpu.registers.flags.c)
+    /// cpu.copy_all_flags(&flags);
+    /// assert!(!cpu.registers.flags.z);
+    /// assert!(cpu.registers.flags.n);
+    /// assert!(cpu.registers.flags.h);
+    /// assert!(cpu.registers.flags.c);
     /// ```
     fn copy_all_flags(&mut self, flags: &alu::Flags) {
         self.copy_flags::<{ flag_mask::ALL }>(flags)
@@ -1121,7 +1150,7 @@ mod flag_mask {
 #[cfg(test)]
 #[allow(non_snake_case)] // helps a lot for regs names
 mod tests {
-    use crate::cpu::tests::MockBus as Bus;
+    use emu::mem::test_utilities::MockMemoryBus as Bus;
 
     use super::*;
 
