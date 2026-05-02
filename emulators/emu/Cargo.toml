@@ -10,3 +10,7 @@ test-utilities = []
 
 [dev-dependencies]
 emu = { path = ".", features = ["test-utilities"] } # this allows us to write doc tests that use the test utilities
+
+[lints]
+workspace = true
+

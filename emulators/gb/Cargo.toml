@@ -8,3 +8,7 @@ emu = { path = "../emu" }
 
 [dev-dependencies]
 emu = { path = "../emu", features = ["test-utilities"] }
+
+[lints]
+workspace = true
+

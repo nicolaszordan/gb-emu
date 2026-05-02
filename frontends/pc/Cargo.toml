@@ -5,3 +5,7 @@ edition = "2024"
 
 [dependencies]
 gb = { path = "../../emulators/gb"}
+
+[lints]
+workspace = true
+
