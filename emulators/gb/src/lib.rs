@@ -1,26 +1,26 @@
 pub(crate) mod cpu;
-// mod motherboard;
-mod mem;
+pub(crate) mod motherboard;
+
+use motherboard::MotherBoard;
+use cpu::CPU;
 
 #[derive(Debug)]
 pub struct GameBoy {
-    mem: mem::Bus,
-    cpu: cpu::CPU,
-    // mb: MotherBoard,
+    cpu: CPU,
+    mb: MotherBoard,
 }
 
 impl GameBoy {
     pub fn new() -> GameBoy {
         GameBoy {
-            mem: mem::Bus::new(),
-            cpu: cpu::CPU::new(),
-            // mb: MotherBoard::new(),
+            cpu: CPU::new(),
+            mb: MotherBoard::new(),
         }
     }
 
     pub fn step(&mut self) {
-        let _cycles = self.cpu.step(&mut self.mem);
-        // self.mb.step(cycles);
+        let cycles = self.cpu.step(&mut self.mb);
+        self.mb.step(cycles);
     }
 
     pub fn get_display_buffer(&self) -> &[u8] {
