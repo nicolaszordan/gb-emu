@@ -7,15 +7,21 @@ use crate::cycles::TCycles;
 use crate::interrupts::{Interrupt, InterruptBus, InterruptFlags};
 use interrupts::{IE_ADDRESS, IF_ADDRESS, InterruptRegisters};
 
+pub(crate) mod timer;
+
+use timer::Timer;
+
 #[derive(Debug)]
 pub struct MotherBoard {
     interrupt_registers: InterruptRegisters,
+    timer: Timer,
 }
 
 impl MotherBoard {
     pub const fn new() -> Self {
         Self {
             interrupt_registers: InterruptRegisters::new(),
+            timer: Timer::new(),
         }
     }
 
@@ -23,7 +29,7 @@ impl MotherBoard {
     pub const fn step(&mut self, _cycles: TCycles) {
         // self.ppu.step(cycles);
         // self.apu.step(cycles);
-        // self.timer.step(cycles);
+        self.timer.step(cycles);
     }
 }
 
@@ -58,6 +64,10 @@ impl MemoryBus for MotherBoard {
             IE_ADDRESS | IF_ADDRESS => {
                 // Interrupt registers
                 self.interrupt_registers.read(address)
+            }
+            0xFF04..=0xFF07 => {
+                // Timer registers
+                self.timer.read(address)
             }
             // 0xFF00..=0xFF7F => {
             //     // I/O registers
@@ -99,6 +109,10 @@ impl MemoryBus for MotherBoard {
             IE_ADDRESS | IF_ADDRESS => {
                 // Interrupt registers
                 self.interrupt_registers.write(address, value);
+            }
+            0xFF04..=0xFF07 => {
+                // Timer registers
+                self.timer.write(address, value)
             }
             // 0xFF00..=0xFF7F => {
             //     // I/O registers
