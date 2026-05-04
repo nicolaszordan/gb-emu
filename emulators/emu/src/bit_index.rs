@@ -9,12 +9,16 @@ pub struct BitIndex(u8);
 impl BitIndex {
     /// Creates a `BitIndex` from a `u8`, returning an error if the value is out of range.
     ///
+    /// # Errors
+    /// 
+    /// If `value >= 8`, returns [`BitIndexOutOfRange`] containing the invalid value.
+    ///
     /// ```
     /// # use emu::{BitIndex, BitIndexOutOfRange};
     /// assert!(BitIndex::new(3).is_ok());
     /// assert_eq!(BitIndex::new(8), Err(BitIndexOutOfRange(8)));
     /// ```
-    pub fn new(value: u8) -> Result<Self, BitIndexOutOfRange> {
+    pub const fn new(value: u8) -> Result<Self, BitIndexOutOfRange> {
         if value < 8 {
             Ok(Self(value))
         } else {
@@ -34,7 +38,8 @@ impl BitIndex {
     /// let idx = unsafe { BitIndex::new_unchecked(5) };
     /// assert_eq!(idx.index(), 5);
     /// ```
-    pub unsafe fn new_unchecked(value: u8) -> Self {
+    #[must_use] 
+    pub const unsafe fn new_unchecked(value: u8) -> Self {
         Self(value)
     }
 
@@ -46,7 +51,8 @@ impl BitIndex {
     /// // Only the low 3 bits (0b110 = 6) are kept.
     /// assert_eq!(BitIndex::from_low_bits(0b1010_0110).index(), 6);
     /// ```
-    pub fn from_low_bits(value: u8) -> Self {
+    #[must_use] 
+    pub const fn from_low_bits(value: u8) -> Self {
         Self(value & 0b111)
     }
 
@@ -57,7 +63,8 @@ impl BitIndex {
     /// let idx = BitIndex::new(4).unwrap();
     /// assert_eq!(idx.index(), 4);
     /// ```
-    pub fn index(self) -> u8 {
+    #[must_use] 
+    pub const fn index(self) -> u8 {
         self.0
     }
 
@@ -68,7 +75,8 @@ impl BitIndex {
     /// let idx = BitIndex::new(3).unwrap();
     /// assert_eq!(idx.to_bit_mask(), 0b0000_1000);
     /// ```
-    pub fn to_bit_mask(self) -> u8 {
+    #[must_use] 
+    pub const fn to_bit_mask(self) -> u8 {
         1 << self.0
     }
 
@@ -80,7 +88,8 @@ impl BitIndex {
     /// assert!(idx.get(0b0001_0000));
     /// assert!(!idx.get(0b1110_1111));
     /// ```
-    pub fn get(self, byte: u8) -> bool {
+    #[must_use] 
+    pub const fn get(self, byte: u8) -> bool {
         byte & self.to_bit_mask() != 0
     }
 
@@ -91,7 +100,8 @@ impl BitIndex {
     /// let idx = BitIndex::new(1).unwrap();
     /// assert_eq!(idx.set(0b0000_0000), 0b0000_0010);
     /// ```
-    pub fn set(self, byte: u8) -> u8 {
+    #[must_use] 
+    pub const fn set(self, byte: u8) -> u8 {
         byte | self.to_bit_mask()
     }
 
@@ -102,7 +112,8 @@ impl BitIndex {
     /// let idx = BitIndex::new(2).unwrap();
     /// assert_eq!(idx.clear(0b1111_1111), 0b1111_1011);
     /// ```
-    pub fn clear(self, byte: u8) -> u8 {
+    #[must_use] 
+    pub const fn clear(self, byte: u8) -> u8 {
         byte & !self.to_bit_mask()
     }
 
@@ -114,7 +125,8 @@ impl BitIndex {
     /// assert_eq!(idx.flip(0b0000_0000), 0b0010_0000);
     /// assert_eq!(idx.flip(0b1111_1111), 0b1101_1111);
     /// ```
-    pub fn flip(self, byte: u8) -> u8 {
+    #[must_use] 
+    pub const fn flip(self, byte: u8) -> u8 {
         byte ^ self.to_bit_mask()
     }
 }
