@@ -46,8 +46,8 @@ pub trait MemoryBus {
     /// assert_eq!(bus.read_word(0x1234), 0x7856); // note the endian swap
     /// ```
     fn read_word(&self, address: u16) -> u16 {
-        let lo = self.read(address) as u16;
-        let hi = self.read(address.wrapping_add(1)) as u16;
+        let lo = u16::from(self.read(address));
+        let hi = u16::from(self.read(address.wrapping_add(1)));
         (hi << 8) | lo
     }
 
@@ -69,6 +69,7 @@ pub trait MemoryBus {
     /// assert_eq!(bus.read(0x1234), 0x78); // low byte
     /// assert_eq!(bus.read(0x1235), 0x56); // high byte
     /// ```
+    #[allow(clippy::cast_possible_truncation)]
     fn write_word(&mut self, address: u16, value: u16) {
         let lo = value as u8;
         let hi = (value >> 8) as u8;
@@ -83,16 +84,25 @@ pub trait MemoryBus {
 
 #[cfg(any(test, feature = "test-utilities"))]
 pub mod test_utilities {
-    use super::*;
+    use super::MemoryBus;
 
     pub struct MockMemoryBus {
-        pub mem: [u8; 0x10000],
+        pub mem: Box<[u8]>,
     }
 
     impl MockMemoryBus {
         /// create a fully zero'ed bus
+        #[must_use]
         pub fn new() -> Self {
-            MockMemoryBus { mem: [0; 0x10000] }
+            Self {
+                mem: vec![0; 0x10000].into_boxed_slice(),
+            }
+        }
+    }
+
+    impl Default for MockMemoryBus {
+        fn default() -> Self {
+            Self::new()
         }
     }
 
@@ -102,7 +112,7 @@ pub mod test_utilities {
         }
 
         fn write(&mut self, address: u16, value: u8) {
-            self.mem[address as usize] = value
+            self.mem[address as usize] = value;
         }
     }
 }

@@ -3,6 +3,8 @@ use crate::cpu::{CPU, IME};
 
 use super::condition::Condition;
 use super::operand::{Operand8, Operand16};
+
+#[allow(clippy::wildcard_imports)] // we use all paramaters in this module
 use super::parameter::*;
 
 use emu::MemoryBus;
@@ -199,7 +201,7 @@ impl CPU {
         condition: Condition,
         param: JumpParam,
     ) -> u32 {
-        if condition.check(&self.registers.flags) {
+        if condition.check(self.registers.flags) {
             self.instr_jump(bus, param) + 4
         } else {
             let _ = Operand16::from(param).read(self, bus); // we read the param to move PC forward in case of E8/N16 params
@@ -279,7 +281,7 @@ impl CPU {
         condition: Condition,
         param: CallParam,
     ) -> u32 {
-        if condition.check(&self.registers.flags) {
+        if condition.check(self.registers.flags) {
             self.instr_call(bus, param) + 12
         } else {
             let _ = Operand16::from(param).read(self, bus); // we read the param to move PC forward in case of E8/N16 params
@@ -347,7 +349,7 @@ impl CPU {
     /// assert_eq!(cpu.pc, 0x0102); // pc is back to the instruction after the call
     /// ```
     pub(crate) fn instr_cond_ret<M: MemoryBus>(&mut self, bus: &M, condition: Condition) -> u32 {
-        if condition.check(&self.registers.flags) {
+        if condition.check(self.registers.flags) {
             self.instr_ret(bus) + 12
         } else {
             0
@@ -375,7 +377,7 @@ impl CPU {
     /// cpu.instr_call(&mut bus, CALLParam::N16);
     /// assert_eq!(cpu.pc, 0x1234);
     ///
-    /// cpu.instr_reti(&mut bus);
+    /// cpu.instr_reti(&bus);
     ///
     /// assert_eq!(cpu.pc, 0x0102); // pc is back to the instruction after the call
     /// assert!(matches!(cpu.ime, IME::Enabled)); // IME is enabled
@@ -625,7 +627,7 @@ impl CPU {
         bus: &mut M,
         dst: AddSPe8DstParam,
     ) -> u32 {
-        let e8 = Operand8::E8.read(self, bus) as i8;
+        let e8 = Operand8::E8.read(self, bus).cast_signed();
         let sp = self.sp;
         let (result, flags) = alu::add16_signed(sp, e8);
 
@@ -734,16 +736,16 @@ impl CPU {
     ///
     /// ```ignore
     /// let mut cpu = CPU::new();
-    /// let mut bus = Bus::new();
+    /// let bus = Bus::new();
     ///
     /// cpu.registers.b = 0b1101_1111;
-    /// cpu.instr_ext_bit(&mut bus, 5u8.into(), R8Param::B);
+    /// cpu.instr_ext_bit(&bus, 5u8.into(), R8Param::B);
     ///
     /// assert!(cpu.registers.flags.z); // BIT 5 of register B is set to 0
     /// ```
     pub(crate) fn instr_ext_bit<M: MemoryBus>(
         &mut self,
-        bus: &mut M,
+        bus: &M,
         bit_index: BitIndex,
         param: R8Param,
     ) -> u32 {
@@ -876,7 +878,7 @@ impl CPU {
     /// assert_eq!(cpu.registers.a, 0b1010_1100); // back where we started
     /// ```
     ///
-    pub(crate) fn instr_cpl(&mut self) -> u32 {
+    pub(crate) const fn instr_cpl(&mut self) -> u32 {
         self.registers.a = !self.registers.a;
 
         self.registers.flags.n = true;
@@ -901,7 +903,7 @@ impl CPU {
     /// cpu.instr_ccf();
     /// assert!(!cpu.registers.flags.c); // back where we started
     /// ```
-    pub(crate) fn instr_ccf(&mut self) -> u32 {
+    pub(crate) const fn instr_ccf(&mut self) -> u32 {
         self.registers.flags.n = false;
         self.registers.flags.h = false;
 
@@ -924,7 +926,7 @@ impl CPU {
     /// cpu.instr_scf();
     /// assert!(cpu.registers.flags.c);
     /// ```
-    pub(crate) fn instr_scf(&mut self) -> u32 {
+    pub(crate) const fn instr_scf(&mut self) -> u32 {
         self.registers.flags.n = false;
         self.registers.flags.h = false;
         self.registers.flags.c = true;
@@ -957,7 +959,7 @@ impl CPU {
     ///
     /// cpu.step(&mut bus); // ime is enabled for this instruction
     /// ```
-    pub(crate) fn instr_ei(&mut self) -> u32 {
+    pub(crate) const fn instr_ei(&mut self) -> u32 {
         self.ime = IME::PendingEnable;
 
         0
@@ -990,17 +992,17 @@ impl CPU {
     ///
     /// assert!(matches!(cpu.ime, IME::Disabled)); // ime is immediately disabled
     /// ```
-    pub(crate) fn instr_di(&mut self) -> u32 {
+    pub(crate) const fn instr_di(&mut self) -> u32 {
         self.ime = IME::Disabled;
 
         0
     }
 
-    pub(crate) fn instr_halt(&mut self) -> u32 {
+    pub(crate) fn instr_halt(&self) -> u32 {
         todo!()
     }
 
-    pub(crate) fn instr_stop(&mut self) -> u32 {
+    pub(crate) fn instr_stop(&self) -> u32 {
         todo!()
     }
 
@@ -1021,14 +1023,14 @@ impl CPU {
     ///
     /// assert_eq!(cpu.registers.a, 0x45);
     /// ```
-    pub(crate) fn instr_daa(&mut self) -> u32 {
+    pub(crate) const fn instr_daa(&mut self) -> u32 {
         let mut a = self.registers.a;
         let mut carry = self.registers.flags.c;
         let half_carry = self.registers.flags.h;
         let subtract = self.registers.flags.n;
+        let mut correction = 0x00;
 
         if subtract {
-            let mut correction = 0x00;
             if half_carry {
                 correction += 0x06;
             }
@@ -1037,7 +1039,6 @@ impl CPU {
             }
             a = a.wrapping_sub(correction);
         } else {
-            let mut correction = 0x00;
             if half_carry || (a & 0x0F) > 0x09 {
                 correction += 0x06;
             }
@@ -1086,7 +1087,7 @@ impl CPU {
     /// assert!(cpu.registers.flags.h);
     /// assert!(cpu.registers.flags.c);
     /// ```
-    fn copy_flags<const FLAG_MASK: u8>(&mut self, flags: &alu::Flags) {
+    const fn copy_flags<const FLAG_MASK: u8>(&mut self, flags: &alu::Flags) {
         if FLAG_MASK & flag_mask::Z != 0 {
             self.registers.flags.z = flags.z().expect("unexpected None value for z flag");
         }
@@ -1117,8 +1118,8 @@ impl CPU {
     /// assert!(cpu.registers.flags.h);
     /// assert!(cpu.registers.flags.c);
     /// ```
-    fn copy_all_flags(&mut self, flags: &alu::Flags) {
-        self.copy_flags::<{ flag_mask::ALL }>(flags)
+    const fn copy_all_flags(&mut self, flags: &alu::Flags) {
+        self.copy_flags::<{ flag_mask::ALL }>(flags);
     }
 }
 
@@ -1132,19 +1133,19 @@ impl CPU {
 /// - `flag_mask::ALL` : bitwise OR of the `Z`, `N`, `H` and `C` masks
 mod flag_mask {
     /// mask for the zero flag
-    pub(crate) const Z: u8 = 0b0001;
+    pub const Z: u8 = 0b0001;
 
     /// mask for the substract flag
-    pub(crate) const N: u8 = 0b0010;
+    pub const N: u8 = 0b0010;
 
     /// mask for the half-carry flag
-    pub(crate) const H: u8 = 0b0100;
+    pub const H: u8 = 0b0100;
 
     /// mask for the carry flag
-    pub(crate) const C: u8 = 0b1000;
+    pub const C: u8 = 0b1000;
 
     /// bitwise OR of the `Z`, `N`, `H` and `C` masks
-    pub(crate) const ALL: u8 = Z | N | H | C;
+    pub const ALL: u8 = Z | N | H | C;
 }
 
 #[cfg(test)]
@@ -1389,7 +1390,7 @@ mod tests {
             assert_eq!(cycles, 0);
             assert_eq!(cpu.pc, 0x5678);
 
-            bus.write(cpu.pc, -2 as i8 as u8);
+            bus.write(cpu.pc, (-2_i8).cast_unsigned());
             let cycles = cpu.instr_jump(&bus, JumpParam::PCE8);
 
             assert_eq!(cycles, 0);
@@ -1429,7 +1430,7 @@ mod tests {
         }
     }
 
-    mod call {
+    mod call_ret {
         use super::*;
 
         mod call {
@@ -1551,7 +1552,7 @@ mod tests {
                 cpu.sp = 0xFFFE;
                 cpu.stack().push_word(&mut bus, 0x5678); // fake call pc pushed onto the stack
 
-                let cycles = cpu.instr_reti(&mut bus);
+                let cycles = cpu.instr_reti(&bus);
 
                 assert_eq!(cycles, 0);
                 assert_eq!(cpu.pc, 0x5678);
@@ -2039,7 +2040,7 @@ mod tests {
                     cpu.sp = 0x0000;
                     cpu.pc = 0x0001;
 
-                    bus.write(cpu.pc, -8 as i8 as u8);
+                    bus.write(cpu.pc, (-8_i8).cast_unsigned());
 
                     let cycles = cpu.instr_add_spe8(&mut bus, AddSPe8DstParam::HL);
 
@@ -2073,7 +2074,7 @@ mod tests {
 
                 assert_eq!(cycles, 8);
                 assert_eq!(cpu.registers.d, 0b0010_1100); // the RL D instruction should have been executed correctly
-                assert_eq!(cpu.registers.flags.c, true); // the carry flag should have been set by the RL D instruction
+                assert!(cpu.registers.flags.c); // the carry flag should have been set by the RL D instruction
                 assert_eq!(cpu.pc, 0x0002); // pc should have moved forward by 1 to read the prefix byte
             }
             #[test]
@@ -2255,10 +2256,10 @@ mod tests {
                 {
                     // BIT 0 B
                     let mut cpu = CPU::new();
-                    let mut bus = Bus::new();
+                    let bus = Bus::new();
 
                     cpu.registers.b = 0b1001_0110;
-                    let cycles = cpu.instr_ext_bit(&mut bus, 0.try_into().unwrap(), R8Param::B);
+                    let cycles = cpu.instr_ext_bit(&bus, 0.try_into().unwrap(), R8Param::B);
 
                     assert_eq!(cycles, 0);
                     assert_eq!(cpu.registers.b, 0b1001_0110); // should not modify the value
@@ -2273,10 +2274,10 @@ mod tests {
                 {
                     // BIT 1 C
                     let mut cpu = CPU::new();
-                    let mut bus = Bus::new();
+                    let bus = Bus::new();
 
                     cpu.registers.c = 0b1001_0110;
-                    let cycles = cpu.instr_ext_bit(&mut bus, 1.try_into().unwrap(), R8Param::C);
+                    let cycles = cpu.instr_ext_bit(&bus, 1.try_into().unwrap(), R8Param::C);
 
                     assert_eq!(cycles, 0);
                     assert_eq!(cpu.registers.c, 0b1001_0110); // should not modify the value
@@ -2291,10 +2292,10 @@ mod tests {
                 {
                     // BIT 2 D
                     let mut cpu = CPU::new();
-                    let mut bus = Bus::new();
+                    let bus = Bus::new();
 
                     cpu.registers.d = 0b1001_0110;
-                    let cycles = cpu.instr_ext_bit(&mut bus, 2.try_into().unwrap(), R8Param::D);
+                    let cycles = cpu.instr_ext_bit(&bus, 2.try_into().unwrap(), R8Param::D);
 
                     assert_eq!(cycles, 0);
                     assert_eq!(cpu.registers.d, 0b1001_0110); // should not modify the value
@@ -2309,10 +2310,10 @@ mod tests {
                 {
                     // BIT 3 E
                     let mut cpu = CPU::new();
-                    let mut bus = Bus::new();
+                    let bus = Bus::new();
 
                     cpu.registers.e = 0b1001_0110;
-                    let cycles = cpu.instr_ext_bit(&mut bus, 3.try_into().unwrap(), R8Param::E);
+                    let cycles = cpu.instr_ext_bit(&bus, 3.try_into().unwrap(), R8Param::E);
 
                     assert_eq!(cycles, 0);
                     assert_eq!(cpu.registers.e, 0b1001_0110); // should not modify the value
@@ -2327,10 +2328,10 @@ mod tests {
                 {
                     // BIT 4 H
                     let mut cpu = CPU::new();
-                    let mut bus = Bus::new();
+                    let bus = Bus::new();
 
                     cpu.registers.h = 0b1001_0110;
-                    let cycles = cpu.instr_ext_bit(&mut bus, 4.try_into().unwrap(), R8Param::H);
+                    let cycles = cpu.instr_ext_bit(&bus, 4.try_into().unwrap(), R8Param::H);
 
                     assert_eq!(cycles, 0);
                     assert_eq!(cpu.registers.h, 0b1001_0110); // should not modify the value
@@ -2345,10 +2346,10 @@ mod tests {
                 {
                     // BIT 5 L
                     let mut cpu = CPU::new();
-                    let mut bus = Bus::new();
+                    let bus = Bus::new();
 
                     cpu.registers.l = 0b1001_0110;
-                    let cycles = cpu.instr_ext_bit(&mut bus, 5.try_into().unwrap(), R8Param::L);
+                    let cycles = cpu.instr_ext_bit(&bus, 5.try_into().unwrap(), R8Param::L);
 
                     assert_eq!(cycles, 0);
                     assert_eq!(cpu.registers.l, 0b1001_0110); // should not modify the value
@@ -2368,7 +2369,7 @@ mod tests {
                     cpu.registers.h = 0x12;
                     cpu.registers.l = 0x34;
                     bus.mem[0x1234] = 0b1001_0110;
-                    let cycles = cpu.instr_ext_bit(&mut bus, 6.try_into().unwrap(), R8Param::IndHL);
+                    let cycles = cpu.instr_ext_bit(&bus, 6.try_into().unwrap(), R8Param::IndHL);
 
                     assert_eq!(cycles, 0);
                     assert_eq!(cpu.registers.h, 0x12);
@@ -2386,10 +2387,10 @@ mod tests {
                 {
                     // BIT 7 A
                     let mut cpu = CPU::new();
-                    let mut bus = Bus::new();
+                    let bus = Bus::new();
 
                     cpu.registers.a = 0b1001_0110;
-                    let cycles = cpu.instr_ext_bit(&mut bus, 7.try_into().unwrap(), R8Param::A);
+                    let cycles = cpu.instr_ext_bit(&bus, 7.try_into().unwrap(), R8Param::A);
 
                     assert_eq!(cycles, 0);
                     assert_eq!(cpu.registers.a, 0b1001_0110); // should not modify the value

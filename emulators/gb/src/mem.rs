@@ -2,13 +2,13 @@ use emu::MemoryBus;
 
 #[derive(Debug)]
 pub struct Bus {
-    memory: [u8; 0x10000],
+    memory: Box<[u8]>,
 }
 
 impl Bus {
     pub fn new() -> Self {
         Self {
-            memory: [0; 0x10000],
+            memory: vec![0; 0x10000].into_boxed_slice(),
         }
     }
 }
@@ -54,8 +54,8 @@ impl MemoryBus for Bus {
     /// assert_eq!(bus.read_word(0x1234), 0x1234);
     /// ```
     fn read_word(&self, address: u16) -> u16 {
-        let high = self.read(address) as u16;
-        let low = self.read(address.wrapping_add(1)) as u16;
+        let high = u16::from(self.read(address));
+        let low = u16::from(self.read(address.wrapping_add(1)));
         (high << 8) | low
     }
 
@@ -87,7 +87,7 @@ mod tests {
     #[test]
     fn new_bus_is_zeroed() {
         let bus = Bus::new();
-        for byte in bus.memory.iter() {
+        for byte in &bus.memory {
             assert_eq!(*byte, 0);
         }
     }

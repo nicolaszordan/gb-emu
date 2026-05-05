@@ -9,7 +9,7 @@ use stack::StackController;
 
 #[allow(clippy::upper_case_acronyms)] // we're suppressing this lint to keep the naming consistent with the pan docs
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct CPU {
+pub struct CPU {
     /// CPU Registers
     registers: Registers,
 
@@ -29,8 +29,8 @@ pub(crate) struct CPU {
 }
 
 impl CPU {
-    pub(crate) fn new() -> CPU {
-        CPU {
+    pub(crate) fn new() -> Self {
+        Self {
             registers: Registers::new(),
             sp: 0,
             pc: 0,
@@ -64,13 +64,13 @@ impl CPU {
     ///
     /// This is used to emulate the 1 instruction delay after executing the EI
     /// instruction before the IME is actually enabled.
-    fn update_ime(&mut self) {
+    const fn update_ime(&mut self) {
         if matches!(self.ime, IME::PendingEnable) {
             self.ime = IME::Enabled;
         }
     }
 
-    fn stack(&mut self) -> StackController<'_> {
+    const fn stack(&mut self) -> StackController<'_> {
         StackController::new(&mut self.sp)
     }
 

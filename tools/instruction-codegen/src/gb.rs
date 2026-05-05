@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::error::Error;
+use std::fmt::Write;
 
 use serde::{Deserialize, Serialize};
 
@@ -70,7 +71,7 @@ pub fn generate_code(input: &str) -> Result<String, Box<dyn Error>> {
 fn generate_trait(instructions: &InstructionMaps) -> String {
     let mut output = String::new();
 
-    output.push_str(&format!("pub trait {} {{\n", TRAIT_NAME));
+    let _ = writeln!(&mut output, "pub trait {TRAIT_NAME} {{");
     output.push_str(&generate_trait_instruction_map(&instructions.unprefixed));
     output.push_str(&generate_trait_instruction_map(&instructions.cbprefixed));
     output.push_str("}\n");
@@ -83,16 +84,16 @@ fn generate_trait_instruction_map(instruction_map: &InstructionMap) -> String {
 
     for i in 0..instruction_map.len() {
         if i % 16 == 0 {
-            output.push_str(&format!("\n    // 0x{:02X}-0x{:02X}\n", i, i + 15));
+            let _ = writeln!(&mut output, "\n    // 0x{:02X}-0x{:02X}", i, i + 15);
         }
 
-        let opcode_key = format!("0x{:02X}", i);
+        let opcode_key = format!("0x{i:02X}");
 
         if let Some(instr) = instruction_map.get(&opcode_key) {
             let method_name = generate_trait_method_name(instr);
-            output.push_str(&format!("    fn {}(&mut self);\n", method_name));
+            let _ = writeln!(&mut output, "    fn {method_name}(&mut self);");
         } else {
-            panic!("Missing instruction for opcode 0x{:02X}", i);
+            panic!("Missing instruction for opcode 0x{i:02X}");
         }
     }
 
@@ -119,7 +120,7 @@ fn generate_trait_method_operand_name(operand: &Operand) -> String {
         operand_name.push('m');
     }
 
-    let name = operand.name.replace("$", "addr");
+    let name = operand.name.replace('$', "addr");
 
     operand_name.push_str(&name);
 
@@ -164,6 +165,7 @@ fn generate_instruction_metadata_struct() -> String {
     output
 }
 
+#[allow(clippy::cast_possible_truncation)]
 fn generate_instruction_table(
     table_name: &str,
     instructions: &BTreeMap<String, Instruction>,
@@ -171,23 +173,24 @@ fn generate_instruction_table(
     let mut output = String::new();
 
     output.push('\n');
-    output.push_str(&format!(
-        "pub const {}: [InstructionMeta; {}] = [\n",
+    let _ = writeln!(
+        &mut output,
+        "pub const {}: [InstructionMeta; {}] = [",
         table_name,
         instructions.len()
-    ));
+    );
 
     for i in 0..instructions.len() {
         if i % 16 == 0 {
-            output.push_str(&format!("    // 0x{:02X}-0x{:02X}\n", i, i + 15));
+            let _ = writeln!(&mut output, "    // 0x{:02X}-0x{:02X}", i, i + 15);
         }
 
-        let opcode_key = format!("0x{:02X}", i);
+        let opcode_key = format!("0x{i:02X}");
 
         if let Some(instr) = instructions.get(&opcode_key) {
             output.push_str(&generate_instruction_table_entry(instr, i as u8));
         } else {
-            panic!("Missing instruction for opcode 0x{:02X}", i);
+            panic!("Missing instruction for opcode 0x{i:02X}");
         }
     }
 
@@ -203,10 +206,10 @@ fn generate_instruction_table_entry(instr: &Instruction, opcode: u8) -> String {
     let mut output = String::new();
 
     output.push_str("    InstructionMeta {\n");
-    output.push_str(&format!("        mnemonic: \"{}\",\n", instr.mnemonic));
-    output.push_str(&format!("        opcode: 0x{:02X},\n", opcode));
-    output.push_str(&format!("        bytes: {},\n", instr.bytes));
-    output.push_str(&format!("        cycles: {},\n", cycles));
+    let _ = writeln!(&mut output, "        mnemonic: \"{}\",", instr.mnemonic);
+    let _ = writeln!(&mut output, "        opcode: 0x{opcode:02X},");
+    let _ = writeln!(&mut output, "        bytes: {},", instr.bytes);
+    let _ = writeln!(&mut output, "        cycles: {cycles},");
     output.push_str("    },\n");
 
     output
@@ -361,14 +364,14 @@ mod test {
 
         let trait_code = generate_trait(&instructions);
 
-        let expected = r#"
+        let expected = r"
 pub trait InstructionHandler {
 
     // 0x00-0x0F
     fn nop(&mut self);
     fn ld_mBC_n16(&mut self);
 }
-"#;
+";
 
         assert_eq!(&expected[1..], trait_code);
     }

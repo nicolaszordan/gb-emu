@@ -2,6 +2,8 @@ use crate::cpu::CPU;
 
 use super::condition::Condition;
 use super::meta;
+
+#[allow(clippy::wildcard_imports)] // we need and use all the params
 use super::parameter::*;
 
 use emu::MemoryBus;
@@ -80,7 +82,7 @@ impl CPU {
                 self.instr_alu(mem_bus, ALUOperation::from(opcode >> 3), ALU8Param::N8)
             }
             0xC7 | 0xCF | 0xD7 | 0xDF | 0xE7 | 0xEF | 0xF7 | 0xFF => {
-                self.instr_call(mem_bus, CallParam::VEC(opcode as u16 & 0b0011_1000))
+                self.instr_call(mem_bus, CallParam::VEC(u16::from(opcode) & 0b0011_1000))
             }
             0xC9 => self.instr_ret(mem_bus),
             0xCB => self.instr_prefix(mem_bus),
@@ -101,11 +103,11 @@ impl CPU {
 
             0xD3 | 0xE3 | 0xE4 | 0xF4 | 0xDB | 0xEB | 0xEC | 0xFC | 0xDD | 0xED | 0xFD => {
                 // TODO: this  panic! will be changed when we implement CPU states to enter a "bricked" state instead of panicking.
-                panic!("Invalid opcode: 0x{:02X}", opcode);
+                panic!("Invalid opcode: 0x{opcode:02X}");
             }
         };
 
-        meta::UNPREFIXED_INSTRUCTIONS[opcode as usize].cycles as u32 + additional_cycles
+        u32::from(meta::UNPREFIXED_INSTRUCTIONS[opcode as usize].cycles) + additional_cycles
     }
 
     /// Dispatch and execute an instruction from the extended instruction table
@@ -142,7 +144,7 @@ impl CPU {
             ),
         };
 
-        meta::CBPREFIXED_INSTRUCTIONS[opcode as usize].cycles as u32
+        u32::from(meta::CBPREFIXED_INSTRUCTIONS[opcode as usize].cycles)
     }
 }
 
@@ -826,7 +828,7 @@ mod tests {
 
             cpu.sp = 0x0008;
             cpu.pc = 0x1234;
-            bus.write(cpu.pc, -0x0A as i8 as u8);
+            bus.write(cpu.pc, (-0x0A_i8).cast_unsigned());
 
             let cycles = cpu.execute_instruction(&mut bus, 0xE8); // ADD SP E8
 
@@ -987,7 +989,7 @@ mod tests {
                 let mut bus = Bus::new();
 
                 cpu.pc = 0x1234;
-                bus.mem[0x1234] = -2 as i8 as u8;
+                bus.mem[0x1234] = (-2_i8).cast_unsigned();
 
                 let cycles = cpu.execute_instruction(&mut bus, 0x18); // JR e8
 
@@ -1001,7 +1003,7 @@ mod tests {
                 let mut bus = Bus::new();
 
                 cpu.pc = 0x1234;
-                bus.mem[0x1234] = -0x11 as i8 as u8;
+                bus.mem[0x1234] = (-0x11_i8).cast_unsigned();
 
                 cpu.registers.flags.z = true;
                 let cycles = cpu.execute_instruction(&mut bus, 0x28); // JR Z e8
@@ -1026,7 +1028,7 @@ mod tests {
                 let mut bus = Bus::new();
 
                 cpu.pc = 0x1234;
-                bus.mem[0x1234] = -0x11 as i8 as u8;
+                bus.mem[0x1234] = (-0x11_i8).cast_unsigned();
 
                 cpu.registers.flags.c = true;
                 let cycles = cpu.execute_instruction(&mut bus, 0x30); // JR NC e8
@@ -1127,7 +1129,7 @@ mod tests {
         }
     }
 
-    mod call {
+    mod call_ret {
         use super::*;
 
         mod call {
@@ -1377,7 +1379,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0x00);
 
-            assert_eq!(cycles, 4)
+            assert_eq!(cycles, 4);
         }
 
         #[test]

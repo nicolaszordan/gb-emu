@@ -6,7 +6,7 @@ pub struct StackController<'a> {
 }
 
 impl<'a> StackController<'a> {
-    pub fn new(sp: &'a mut u16) -> Self {
+    pub const fn new(sp: &'a mut u16) -> Self {
         Self { sp }
     }
 
@@ -68,7 +68,7 @@ impl<'a> StackController<'a> {
 }
 
 #[cfg(test)]
-impl<'a> StackController<'a> {
+impl StackController<'_> {
     /// Peek at the last pushed value in the stack without modifying [`Self::sp`].
     pub fn peek_word<M: MemoryBus>(&self, bus: &M) -> u16 {
         bus.read_word(*self.sp)
@@ -76,6 +76,7 @@ impl<'a> StackController<'a> {
 }
 
 #[cfg(test)]
+#[allow(clippy::upper_case_acronyms)] // we're suppressing this lint to keep the naming consistent with the pan docs
 mod tests {
     use super::*;
 
