@@ -68,7 +68,7 @@ impl<'a> StackController<'a> {
 }
 
 #[cfg(test)]
-impl<'a> StackController<'a> {
+impl StackController<'_> {
     /// Peek at the last pushed value in the stack without modifying [`Self::sp`].
     pub fn peek_word<M: MemoryBus>(&self, bus: &M) -> u16 {
         bus.read_word(*self.sp)

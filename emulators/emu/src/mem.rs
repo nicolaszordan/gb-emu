@@ -84,16 +84,19 @@ pub trait MemoryBus {
 
 #[cfg(any(test, feature = "test-utilities"))]
 pub mod test_utilities {
-    use super::*;
+    use super::MemoryBus;
 
     pub struct MockMemoryBus {
-        pub mem: [u8; 0x10000],
+        pub mem: Box<[u8]>,
     }
 
     impl MockMemoryBus {
         /// create a fully zero'ed bus
+        #[must_use]
         pub fn new() -> Self {
-            MockMemoryBus { mem: [0; 0x10000] }
+            Self {
+                mem: vec![0; 0x10000].into_boxed_slice(),
+            }
         }
     }
 
@@ -109,7 +112,7 @@ pub mod test_utilities {
         }
 
         fn write(&mut self, address: u16, value: u8) {
-            self.mem[address as usize] = value
+            self.mem[address as usize] = value;
         }
     }
 }

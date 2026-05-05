@@ -213,7 +213,7 @@ mod tests {
             assert_eq!(Operand16::PCE8.read(&mut cpu, &bus), 0x876A + 0x35); // E8 is added after we retrieved it and moved PC forward
             assert_eq!(cpu.pc, 0x876A); // PC isn't moved by the read itself
 
-            bus.mem[0x876A] = -0x0A_i8 as u8;
+            bus.mem[0x876A] = (-0x0A_i8).cast_unsigned();
             assert_eq!(Operand16::PCE8.read(&mut cpu, &bus), 0x876B - 0x0A); // E8 is added after we retrieved it and moved PC forward
             assert_eq!(cpu.pc, 0x876B); // PC isn't moved by the read itself
         }

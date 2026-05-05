@@ -364,14 +364,14 @@ mod test {
 
         let trait_code = generate_trait(&instructions);
 
-        let expected = r#"
+        let expected = r"
 pub trait InstructionHandler {
 
     // 0x00-0x0F
     fn nop(&mut self);
     fn ld_mBC_n16(&mut self);
 }
-"#;
+";
 
         assert_eq!(&expected[1..], trait_code);
     }

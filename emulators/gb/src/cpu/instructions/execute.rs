@@ -1390,7 +1390,7 @@ mod tests {
             assert_eq!(cycles, 0);
             assert_eq!(cpu.pc, 0x5678);
 
-            bus.write(cpu.pc, -2_i8 as u8);
+            bus.write(cpu.pc, (-2_i8).cast_unsigned());
             let cycles = cpu.instr_jump(&bus, JumpParam::PCE8);
 
             assert_eq!(cycles, 0);
@@ -2040,7 +2040,7 @@ mod tests {
                     cpu.sp = 0x0000;
                     cpu.pc = 0x0001;
 
-                    bus.write(cpu.pc, -8_i8 as u8);
+                    bus.write(cpu.pc, (-8_i8).cast_unsigned());
 
                     let cycles = cpu.instr_add_spe8(&mut bus, AddSPe8DstParam::HL);
 
@@ -2256,10 +2256,10 @@ mod tests {
                 {
                     // BIT 0 B
                     let mut cpu = CPU::new();
-                    let mut bus = Bus::new();
+                    let bus = Bus::new();
 
                     cpu.registers.b = 0b1001_0110;
-                    let cycles = cpu.instr_ext_bit(&mut bus, 0.try_into().unwrap(), R8Param::B);
+                    let cycles = cpu.instr_ext_bit(&bus, 0.try_into().unwrap(), R8Param::B);
 
                     assert_eq!(cycles, 0);
                     assert_eq!(cpu.registers.b, 0b1001_0110); // should not modify the value
@@ -2274,10 +2274,10 @@ mod tests {
                 {
                     // BIT 1 C
                     let mut cpu = CPU::new();
-                    let mut bus = Bus::new();
+                    let bus = Bus::new();
 
                     cpu.registers.c = 0b1001_0110;
-                    let cycles = cpu.instr_ext_bit(&mut bus, 1.try_into().unwrap(), R8Param::C);
+                    let cycles = cpu.instr_ext_bit(&bus, 1.try_into().unwrap(), R8Param::C);
 
                     assert_eq!(cycles, 0);
                     assert_eq!(cpu.registers.c, 0b1001_0110); // should not modify the value
@@ -2292,10 +2292,10 @@ mod tests {
                 {
                     // BIT 2 D
                     let mut cpu = CPU::new();
-                    let mut bus = Bus::new();
+                    let bus = Bus::new();
 
                     cpu.registers.d = 0b1001_0110;
-                    let cycles = cpu.instr_ext_bit(&mut bus, 2.try_into().unwrap(), R8Param::D);
+                    let cycles = cpu.instr_ext_bit(&bus, 2.try_into().unwrap(), R8Param::D);
 
                     assert_eq!(cycles, 0);
                     assert_eq!(cpu.registers.d, 0b1001_0110); // should not modify the value
@@ -2310,10 +2310,10 @@ mod tests {
                 {
                     // BIT 3 E
                     let mut cpu = CPU::new();
-                    let mut bus = Bus::new();
+                    let bus = Bus::new();
 
                     cpu.registers.e = 0b1001_0110;
-                    let cycles = cpu.instr_ext_bit(&mut bus, 3.try_into().unwrap(), R8Param::E);
+                    let cycles = cpu.instr_ext_bit(&bus, 3.try_into().unwrap(), R8Param::E);
 
                     assert_eq!(cycles, 0);
                     assert_eq!(cpu.registers.e, 0b1001_0110); // should not modify the value
@@ -2328,10 +2328,10 @@ mod tests {
                 {
                     // BIT 4 H
                     let mut cpu = CPU::new();
-                    let mut bus = Bus::new();
+                    let bus = Bus::new();
 
                     cpu.registers.h = 0b1001_0110;
-                    let cycles = cpu.instr_ext_bit(&mut bus, 4.try_into().unwrap(), R8Param::H);
+                    let cycles = cpu.instr_ext_bit(&bus, 4.try_into().unwrap(), R8Param::H);
 
                     assert_eq!(cycles, 0);
                     assert_eq!(cpu.registers.h, 0b1001_0110); // should not modify the value
@@ -2346,10 +2346,10 @@ mod tests {
                 {
                     // BIT 5 L
                     let mut cpu = CPU::new();
-                    let mut bus = Bus::new();
+                    let bus = Bus::new();
 
                     cpu.registers.l = 0b1001_0110;
-                    let cycles = cpu.instr_ext_bit(&mut bus, 5.try_into().unwrap(), R8Param::L);
+                    let cycles = cpu.instr_ext_bit(&bus, 5.try_into().unwrap(), R8Param::L);
 
                     assert_eq!(cycles, 0);
                     assert_eq!(cpu.registers.l, 0b1001_0110); // should not modify the value
@@ -2369,7 +2369,7 @@ mod tests {
                     cpu.registers.h = 0x12;
                     cpu.registers.l = 0x34;
                     bus.mem[0x1234] = 0b1001_0110;
-                    let cycles = cpu.instr_ext_bit(&mut bus, 6.try_into().unwrap(), R8Param::IndHL);
+                    let cycles = cpu.instr_ext_bit(&bus, 6.try_into().unwrap(), R8Param::IndHL);
 
                     assert_eq!(cycles, 0);
                     assert_eq!(cpu.registers.h, 0x12);
@@ -2387,10 +2387,10 @@ mod tests {
                 {
                     // BIT 7 A
                     let mut cpu = CPU::new();
-                    let mut bus = Bus::new();
+                    let bus = Bus::new();
 
                     cpu.registers.a = 0b1001_0110;
-                    let cycles = cpu.instr_ext_bit(&mut bus, 7.try_into().unwrap(), R8Param::A);
+                    let cycles = cpu.instr_ext_bit(&bus, 7.try_into().unwrap(), R8Param::A);
 
                     assert_eq!(cycles, 0);
                     assert_eq!(cpu.registers.a, 0b1001_0110); // should not modify the value

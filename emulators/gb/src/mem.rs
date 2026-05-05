@@ -87,7 +87,7 @@ mod tests {
     #[test]
     fn new_bus_is_zeroed() {
         let bus = Bus::new();
-        for byte in bus.memory.iter() {
+        for byte in &bus.memory {
             assert_eq!(*byte, 0);
         }
     }

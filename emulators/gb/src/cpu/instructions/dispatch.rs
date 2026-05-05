@@ -828,7 +828,7 @@ mod tests {
 
             cpu.sp = 0x0008;
             cpu.pc = 0x1234;
-            bus.write(cpu.pc, -0x0A_i8 as u8);
+            bus.write(cpu.pc, (-0x0A_i8).cast_unsigned());
 
             let cycles = cpu.execute_instruction(&mut bus, 0xE8); // ADD SP E8
 
@@ -989,7 +989,7 @@ mod tests {
                 let mut bus = Bus::new();
 
                 cpu.pc = 0x1234;
-                bus.mem[0x1234] = -2_i8 as u8;
+                bus.mem[0x1234] = (-2_i8).cast_unsigned();
 
                 let cycles = cpu.execute_instruction(&mut bus, 0x18); // JR e8
 
@@ -1003,7 +1003,7 @@ mod tests {
                 let mut bus = Bus::new();
 
                 cpu.pc = 0x1234;
-                bus.mem[0x1234] = -0x11_i8 as u8;
+                bus.mem[0x1234] = (-0x11_i8).cast_unsigned();
 
                 cpu.registers.flags.z = true;
                 let cycles = cpu.execute_instruction(&mut bus, 0x28); // JR Z e8
@@ -1028,7 +1028,7 @@ mod tests {
                 let mut bus = Bus::new();
 
                 cpu.pc = 0x1234;
-                bus.mem[0x1234] = -0x11_i8 as u8;
+                bus.mem[0x1234] = (-0x11_i8).cast_unsigned();
 
                 cpu.registers.flags.c = true;
                 let cycles = cpu.execute_instruction(&mut bus, 0x30); // JR NC e8
@@ -1379,7 +1379,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0x00);
 
-            assert_eq!(cycles, 4)
+            assert_eq!(cycles, 4);
         }
 
         #[test]
