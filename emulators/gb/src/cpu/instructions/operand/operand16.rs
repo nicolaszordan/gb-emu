@@ -6,7 +6,7 @@ use crate::cpu::instructions::parameter::{
 
 use emu::MemoryBus;
 
-pub(crate) enum Operand16 {
+pub enum Operand16 {
     BC,
     DE,
     HL,
@@ -21,29 +21,29 @@ pub(crate) enum Operand16 {
 impl Operand16 {
     pub(crate) fn read<M: MemoryBus>(&self, cpu: &mut CPU, bus: &M) -> u16 {
         match self {
-            Operand16::BC => cpu.registers.bc_get(),
-            Operand16::DE => cpu.registers.de_get(),
-            Operand16::HL => cpu.registers.hl_get(),
-            Operand16::SP => cpu.sp,
-            Operand16::AF => cpu.registers.af_get(),
-            Operand16::N16 => cpu.fetch_word(bus),
-            Operand16::IndN16 => bus.read_word(cpu.fetch_word(bus)),
-            Operand16::PCE8 => {
-                let e8 = cpu.fetch_byte(bus) as i8;
-                cpu.pc.wrapping_add_signed(e8 as i16)
+            Self::BC => cpu.registers.bc_get(),
+            Self::DE => cpu.registers.de_get(),
+            Self::HL => cpu.registers.hl_get(),
+            Self::SP => cpu.sp,
+            Self::AF => cpu.registers.af_get(),
+            Self::N16 => cpu.fetch_word(bus),
+            Self::IndN16 => bus.read_word(cpu.fetch_word(bus)),
+            Self::PCE8 => {
+                let e8 = cpu.fetch_byte(bus).cast_signed();
+                cpu.pc.wrapping_add_signed(i16::from(e8))
             }
-            Operand16::VEC(param) => *param,
+            Self::VEC(param) => *param,
         }
     }
 
     pub(crate) fn write<M: MemoryBus>(&self, cpu: &mut CPU, bus: &mut M, value: u16) {
         match self {
-            Operand16::BC => cpu.registers.bc_set(value),
-            Operand16::DE => cpu.registers.de_set(value),
-            Operand16::HL => cpu.registers.hl_set(value),
-            Operand16::SP => cpu.sp = value,
-            Operand16::AF => cpu.registers.af_set(value),
-            Operand16::IndN16 => bus.write_word(cpu.fetch_word(bus), value),
+            Self::BC => cpu.registers.bc_set(value),
+            Self::DE => cpu.registers.de_set(value),
+            Self::HL => cpu.registers.hl_set(value),
+            Self::SP => cpu.sp = value,
+            Self::AF => cpu.registers.af_set(value),
+            Self::IndN16 => bus.write_word(cpu.fetch_word(bus), value),
             _ => unimplemented!("unsupported write parameter"),
         }
     }

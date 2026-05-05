@@ -255,14 +255,14 @@ impl From<u8> for ALUOperation {
     ///
     fn from(value: u8) -> Self {
         match value & 0b111 {
-            0 => ALUOperation::ADD,
-            1 => ALUOperation::ADC,
-            2 => ALUOperation::SUB,
-            3 => ALUOperation::SBC,
-            4 => ALUOperation::AND,
-            5 => ALUOperation::XOR,
-            6 => ALUOperation::OR,
-            7 => ALUOperation::CP,
+            0 => Self::ADD,
+            1 => Self::ADC,
+            2 => Self::SUB,
+            3 => Self::SBC,
+            4 => Self::AND,
+            5 => Self::XOR,
+            6 => Self::OR,
+            7 => Self::CP,
             _ => unreachable!("all possible values after mask are mapped"),
         }
     }

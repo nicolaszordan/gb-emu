@@ -10,8 +10,9 @@ pub struct GameBoy {
 }
 
 impl GameBoy {
-    pub fn new() -> GameBoy {
-        GameBoy {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
             mem: mem::Bus::new(),
             cpu: cpu::CPU::new(),
             // mb: MotherBoard::new(),
@@ -23,6 +24,7 @@ impl GameBoy {
         // self.mb.step(cycles);
     }
 
+    #[must_use]
     pub fn get_display_buffer(&self) -> &[u8] {
         todo!()
     }
@@ -39,6 +41,7 @@ impl GameBoy {
         todo!()
     }
 
+    #[must_use]
     pub fn get_mem_dump(&self) -> &[u8] {
         todo!()
     }

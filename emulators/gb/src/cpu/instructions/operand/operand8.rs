@@ -8,7 +8,7 @@ use crate::cpu::instructions::parameter::{
 
 use emu::MemoryBus;
 
-pub(crate) enum Operand8 {
+pub enum Operand8 {
     B,
     C,
     D,
@@ -31,62 +31,61 @@ pub(crate) enum Operand8 {
 impl Operand8 {
     pub(crate) fn read<M: MemoryBus>(&self, cpu: &mut CPU, bus: &M) -> u8 {
         match self {
-            Operand8::B => cpu.registers.b,
-            Operand8::C => cpu.registers.c,
-            Operand8::D => cpu.registers.d,
-            Operand8::E => cpu.registers.e,
-            Operand8::H => cpu.registers.h,
-            Operand8::L => cpu.registers.l,
-            Operand8::IndHL => bus.read(cpu.registers.hl_get()),
-            Operand8::A => cpu.registers.a,
-            Operand8::IndBC => bus.read(cpu.registers.bc_get()),
-            Operand8::IndDE => bus.read(cpu.registers.de_get()),
-            Operand8::IndHLi => {
+            Self::B => cpu.registers.b,
+            Self::C => cpu.registers.c,
+            Self::D => cpu.registers.d,
+            Self::E => cpu.registers.e,
+            Self::H => cpu.registers.h,
+            Self::L => cpu.registers.l,
+            Self::IndHL => bus.read(cpu.registers.hl_get()),
+            Self::A => cpu.registers.a,
+            Self::IndBC => bus.read(cpu.registers.bc_get()),
+            Self::IndDE => bus.read(cpu.registers.de_get()),
+            Self::IndHLi => {
                 let value = bus.read(cpu.registers.hl_get());
                 let (hli, _) = alu::inc16(cpu.registers.hl_get());
                 cpu.registers.hl_set(hli);
                 value
             }
-            Operand8::IndHLd => {
+            Self::IndHLd => {
                 let value = bus.read(cpu.registers.hl_get());
                 let (hld, _) = alu::dec16(cpu.registers.hl_get());
                 cpu.registers.hl_set(hld);
                 value
             }
-            Operand8::N8 => cpu.fetch_byte(bus),
-            Operand8::E8 => cpu.fetch_byte(bus), // cast to i8 is left to the caller
-            Operand8::IndN16 => bus.read(cpu.fetch_word(bus)),
-            Operand8::IndHighMemC => bus.read(HIGH_MEM_OFFSET + cpu.registers.c as u16),
-            Operand8::IndHighMemA8 => bus.read(HIGH_MEM_OFFSET + cpu.fetch_byte(bus) as u16),
+            Self::N8 | Self::E8 => cpu.fetch_byte(bus), // cast to i8 is left to the caller
+            Self::IndN16 => bus.read(cpu.fetch_word(bus)),
+            Self::IndHighMemC => bus.read(HIGH_MEM_OFFSET + u16::from(cpu.registers.c)),
+            Self::IndHighMemA8 => bus.read(HIGH_MEM_OFFSET + u16::from(cpu.fetch_byte(bus))),
         }
     }
 
     pub(crate) fn write<M: MemoryBus>(&self, cpu: &mut CPU, bus: &mut M, value: u8) {
         match self {
-            Operand8::B => cpu.registers.b = value,
-            Operand8::C => cpu.registers.c = value,
-            Operand8::D => cpu.registers.d = value,
-            Operand8::E => cpu.registers.e = value,
-            Operand8::H => cpu.registers.h = value,
-            Operand8::L => cpu.registers.l = value,
-            Operand8::IndHL => bus.write(cpu.registers.hl_get(), value),
-            Operand8::A => cpu.registers.a = value,
-            Operand8::IndBC => bus.write(cpu.registers.bc_get(), value),
-            Operand8::IndDE => bus.write(cpu.registers.de_get(), value),
-            Operand8::IndHLi => {
+            Self::B => cpu.registers.b = value,
+            Self::C => cpu.registers.c = value,
+            Self::D => cpu.registers.d = value,
+            Self::E => cpu.registers.e = value,
+            Self::H => cpu.registers.h = value,
+            Self::L => cpu.registers.l = value,
+            Self::IndHL => bus.write(cpu.registers.hl_get(), value),
+            Self::A => cpu.registers.a = value,
+            Self::IndBC => bus.write(cpu.registers.bc_get(), value),
+            Self::IndDE => bus.write(cpu.registers.de_get(), value),
+            Self::IndHLi => {
                 bus.write(cpu.registers.hl_get(), value);
                 let (hli, _) = alu::inc16(cpu.registers.hl_get());
                 cpu.registers.hl_set(hli);
             }
-            Operand8::IndHLd => {
+            Self::IndHLd => {
                 bus.write(cpu.registers.hl_get(), value);
                 let (hld, _) = alu::dec16(cpu.registers.hl_get());
                 cpu.registers.hl_set(hld);
             }
-            Operand8::IndN16 => bus.write(cpu.fetch_word(bus), value),
-            Operand8::IndHighMemC => bus.write(HIGH_MEM_OFFSET + cpu.registers.c as u16, value),
-            Operand8::IndHighMemA8 => {
-                bus.write(HIGH_MEM_OFFSET + cpu.fetch_byte(bus) as u16, value)
+            Self::IndN16 => bus.write(cpu.fetch_word(bus), value),
+            Self::IndHighMemC => bus.write(HIGH_MEM_OFFSET + u16::from(cpu.registers.c), value),
+            Self::IndHighMemA8 => {
+                bus.write(HIGH_MEM_OFFSET + u16::from(cpu.fetch_byte(bus)), value);
             }
             _ => unimplemented!("unsupported write parameter"),
         }

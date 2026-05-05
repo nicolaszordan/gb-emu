@@ -6,7 +6,7 @@ use emu::BitIndex;
 /// CPU. Some ALU instructions do not change the status of specific flags this
 /// is the reason that each flag is an Option.
 #[derive(Debug, Default)]
-pub(crate) struct Flags {
+pub struct Flags {
     z: Option<bool>,
     n: Option<bool>,
     h: Option<bool>,
@@ -19,7 +19,7 @@ impl Flags {
     /// The zero flag is set if the result of the last ALU operation was 0.
     ///
     /// Returns `None` if the instruction does not influence this flag.
-    pub(crate) fn z(&self) -> Option<bool> {
+    pub(crate) const fn z(&self) -> Option<bool> {
         self.z
     }
 
@@ -29,7 +29,7 @@ impl Flags {
     /// (eg. SUB, SBC, DEC).
     ///
     /// Returns `None` if the instruction does not influence this flag.
-    pub(crate) fn n(&self) -> Option<bool> {
+    pub(crate) const fn n(&self) -> Option<bool> {
         self.n
     }
 
@@ -40,7 +40,7 @@ impl Flags {
     /// (for 16-bit operations).
     ///
     /// Returns `None` if the instruction does not influence this flag.
-    pub(crate) fn h(&self) -> Option<bool> {
+    pub(crate) const fn h(&self) -> Option<bool> {
         self.h
     }
 
@@ -52,7 +52,7 @@ impl Flags {
     /// subtracted value was greater than the original value).
     ///
     /// Returns `None` if the instruction does not influence this flag.
-    pub(crate) fn c(&self) -> Option<bool> {
+    pub(crate) const fn c(&self) -> Option<bool> {
         self.c
     }
 }
@@ -64,7 +64,7 @@ impl Flags {
 /// - N : 0 (cleared).
 /// - H : Set if overflow from bit 3.
 /// - C : Set if overflow from bit 7.
-pub fn add(a: u8, b: u8) -> (u8, Flags) {
+pub const fn add(a: u8, b: u8) -> (u8, Flags) {
     let (result, carry) = a.overflowing_add(b);
     (
         result,
@@ -91,7 +91,7 @@ pub fn adc(a: u8, b: u8, carry: bool) -> (u8, Flags) {
         Flags {
             z: Some(result == 0),
             n: Some(false),
-            h: Some((a & 0xF) + (b & 0xF) + carry as u8 > 0xF),
+            h: Some((a & 0xF) + (b & 0xF) + u8::from(carry) > 0xF),
             c: Some(result_carry),
         },
     )
@@ -104,7 +104,7 @@ pub fn adc(a: u8, b: u8, carry: bool) -> (u8, Flags) {
 /// - N : 0 (cleared).
 /// - H : Set if overflow from bit 11.
 /// - C : Set if overflow from bit 15.
-pub fn add16(a: u16, b: u16) -> (u16, Flags) {
+pub const fn add16(a: u16, b: u16) -> (u16, Flags) {
     let (result, carry) = a.overflowing_add(b);
     (
         result,
@@ -124,7 +124,8 @@ pub fn add16(a: u16, b: u16) -> (u16, Flags) {
 /// - N : 0 (cleared)
 /// - H : Set if overflow from bit 3.
 /// - C : Set if overflow from bit 7.
-pub fn add16_signed(a: u16, b: i8) -> (u16, Flags) {
+#[allow(clippy::cast_sign_loss)] // we're keeping the sign for the addition but the flags are checked on the unsigned values
+pub const fn add16_signed(a: u16, b: i8) -> (u16, Flags) {
     let result = a.wrapping_add_signed(b as i16);
     (
         result,
@@ -144,7 +145,7 @@ pub fn add16_signed(a: u16, b: i8) -> (u16, Flags) {
 /// - N : 1 (set).
 /// - H : Set if borrow from bit 4.
 /// - C : Set if borrow (ie. B > A).
-pub fn sub(a: u8, b: u8) -> (u8, Flags) {
+pub const fn sub(a: u8, b: u8) -> (u8, Flags) {
     let (result, carry) = a.overflowing_sub(b);
     (
         result,
@@ -164,7 +165,7 @@ pub fn sub(a: u8, b: u8) -> (u8, Flags) {
 /// - N : 1 (set).
 /// - H : Set if borrow from bit 4.
 /// - C : Set if borrow (ie. B + C > A).
-pub fn sbc(a: u8, b: u8, carry: bool) -> (u8, Flags) {
+pub const fn sbc(a: u8, b: u8, carry: bool) -> (u8, Flags) {
     let result = a.wrapping_sub(b).wrapping_sub(carry as u8);
     (
         result,
@@ -184,7 +185,7 @@ pub fn sbc(a: u8, b: u8, carry: bool) -> (u8, Flags) {
 /// - N : 0 (cleared).
 /// - H : 1 (set).
 /// - C : 0 (cleared).
-pub fn and(a: u8, b: u8) -> (u8, Flags) {
+pub const fn and(a: u8, b: u8) -> (u8, Flags) {
     let result = a & b;
     (
         result,
@@ -204,7 +205,7 @@ pub fn and(a: u8, b: u8) -> (u8, Flags) {
 /// - N : 0 (cleared).
 /// - H : 0 (cleared).
 /// - C : 0 (cleared).
-pub fn or(a: u8, b: u8) -> (u8, Flags) {
+pub const fn or(a: u8, b: u8) -> (u8, Flags) {
     let result = a | b;
     (
         result,
@@ -224,7 +225,7 @@ pub fn or(a: u8, b: u8) -> (u8, Flags) {
 /// - N : 0 (cleared).
 /// - H : 0 (cleared).
 /// - C : 0 (cleared).
-pub fn xor(a: u8, b: u8) -> (u8, Flags) {
+pub const fn xor(a: u8, b: u8) -> (u8, Flags) {
     let result = a ^ b;
     (
         result,
@@ -237,7 +238,7 @@ pub fn xor(a: u8, b: u8) -> (u8, Flags) {
     )
 }
 
-/// ComPare two 8-bit values.
+/// `ComPare` two 8-bit values.
 ///
 /// Perform a subtraction of `b` from `a` and discard the result.
 ///
@@ -249,7 +250,7 @@ pub fn xor(a: u8, b: u8) -> (u8, Flags) {
 /// - N : 1 (set).
 /// - H : Set if borrow from bit 4.
 /// - C : Set if borrow (ie. B > A).
-pub fn cp(a: u8, b: u8) -> (u8, Flags) {
+pub const fn cp(a: u8, b: u8) -> (u8, Flags) {
     let (result, carry) = a.overflowing_sub(b);
     (
         a,
@@ -269,14 +270,14 @@ pub fn cp(a: u8, b: u8) -> (u8, Flags) {
 /// - N : 0 (cleared).
 /// - H : Set if overflow from bit 3.
 /// - C : **None**.
-pub fn inc(value: u8) -> (u8, Flags) {
+pub const fn inc(value: u8) -> (u8, Flags) {
     let result = value.wrapping_add(1);
     (
         result,
         Flags {
             z: Some(result == 0),
             n: Some(false),
-            h: Some((result & 0xF) == 0), // check carry from bit 4
+            h: Some(result.trailing_zeros() >= 4), // check carry from bit 4
             c: None,
         },
     )
@@ -289,7 +290,7 @@ pub fn inc(value: u8) -> (u8, Flags) {
 ///
 /// # Notes
 /// The `inc16` instructions **do not** affect any flag.
-pub fn inc16(value: u16) -> (u16, Flags) {
+pub const fn inc16(value: u16) -> (u16, Flags) {
     let result = value.wrapping_add(1);
     (
         result,
@@ -310,7 +311,7 @@ pub fn inc16(value: u16) -> (u16, Flags) {
 /// - N : 1 (set).
 /// - H : Set if borrow from bit 4.
 /// - C : **None**.
-pub fn dec(value: u8) -> (u8, Flags) {
+pub const fn dec(value: u8) -> (u8, Flags) {
     let result = value.wrapping_sub(1);
     (
         result,
@@ -330,7 +331,7 @@ pub fn dec(value: u8) -> (u8, Flags) {
 ///
 /// # Notes
 /// The `dec16` instructions **do not** affect any flag.
-pub fn dec16(value: u16) -> (u16, Flags) {
+pub const fn dec16(value: u16) -> (u16, Flags) {
     let result = value.wrapping_sub(1);
     (
         result,
@@ -363,7 +364,7 @@ pub fn dec16(value: u16) -> (u16, Flags) {
 /// The RLCA instruction (opcode: 0x07) is a special case of the RLC instruction
 /// that rotates the A register and contrary to the regular RLC instruction, it
 /// **should not affect** the zero flag.
-pub fn rlc(value: u8) -> (u8, Flags) {
+pub const fn rlc(value: u8) -> (u8, Flags) {
     let result = value.rotate_left(1);
     (
         result,
@@ -395,7 +396,7 @@ pub fn rlc(value: u8) -> (u8, Flags) {
 /// The RRCA instruction (opcode: 0x0F) is a special case of the RRC instruction
 /// that only rotates the A register and contrary to the regular RRC
 /// instruction, it **does not affect** the zero flag.
-pub fn rrc(value: u8) -> (u8, Flags) {
+pub const fn rrc(value: u8) -> (u8, Flags) {
     let result = value.rotate_right(1);
     (
         result,
@@ -427,7 +428,7 @@ pub fn rrc(value: u8) -> (u8, Flags) {
 /// The RLA instruction (opcode: 0x17) is a special case of the RL instruction
 /// that only rotates the A register and contrary to the regular RL
 /// instruction, it **does not affect** the zero flag.
-pub fn rl(value: u8, carry: bool) -> (u8, Flags) {
+pub const fn rl(value: u8, carry: bool) -> (u8, Flags) {
     let result = (value << 1) | carry as u8;
     (
         result,
@@ -459,7 +460,7 @@ pub fn rl(value: u8, carry: bool) -> (u8, Flags) {
 /// The RRA instruction (opcode: 0x1F) is a special case of the RR instruction
 /// that only rotates the A register and contrary to the regular RR instruction,
 /// it **does not affect** the zero flag.
-pub fn rr(value: u8, carry: bool) -> (u8, Flags) {
+pub const fn rr(value: u8, carry: bool) -> (u8, Flags) {
     let result = (value >> 1) | ((carry as u8) << 7);
     (
         result,
@@ -485,7 +486,7 @@ pub fn rr(value: u8, carry: bool) -> (u8, Flags) {
 /// - N : 0 (cleared).
 /// - H : 0 (cleared).
 /// - C : Set according to result.
-pub fn sla(value: u8) -> (u8, Flags) {
+pub const fn sla(value: u8) -> (u8, Flags) {
     let result = value << 1;
     (
         result,
@@ -511,7 +512,7 @@ pub fn sla(value: u8) -> (u8, Flags) {
 /// - N : 0 (cleared).
 /// - H : 0 (cleared).
 /// - C : Set according to result.
-pub fn sra(value: u8) -> (u8, Flags) {
+pub const fn sra(value: u8) -> (u8, Flags) {
     let result = (value >> 1) | (value & 0b1000_0000); // keep the 8th bit unchanged
     (
         result,
@@ -531,7 +532,7 @@ pub fn sra(value: u8) -> (u8, Flags) {
 /// - N : 0 (cleared).
 /// - H : 0 (cleared).
 /// - C : 0 (cleared).
-pub fn swap(value: u8) -> (u8, Flags) {
+pub const fn swap(value: u8) -> (u8, Flags) {
     let result = value.rotate_right(4);
     (
         result,
@@ -557,7 +558,7 @@ pub fn swap(value: u8) -> (u8, Flags) {
 /// - N : 0 (cleared).
 /// - H : 0 (cleared).
 /// - C : Set according to result.
-pub fn srl(value: u8) -> (u8, Flags) {
+pub const fn srl(value: u8) -> (u8, Flags) {
     let result = value >> 1;
     (
         result,
@@ -579,7 +580,7 @@ pub fn srl(value: u8) -> (u8, Flags) {
 /// - N : 0 (cleared).
 /// - H : 1 (set).
 /// - C : **None**.
-pub fn bit(index: BitIndex, value: u8) -> Flags {
+pub const fn bit(index: BitIndex, value: u8) -> Flags {
     let is_bit_set = index.get(value);
     Flags {
         z: Some(!is_bit_set), // flag is set if the tested bit is 0
@@ -598,7 +599,7 @@ pub fn bit(index: BitIndex, value: u8) -> Flags {
 ///
 /// # Notes
 /// The `set` instructions **do not** affect any flag.
-pub fn set(index: BitIndex, value: u8) -> (u8, Flags) {
+pub const fn set(index: BitIndex, value: u8) -> (u8, Flags) {
     let result = index.set(value);
     (
         result,
@@ -621,7 +622,7 @@ pub fn set(index: BitIndex, value: u8) -> (u8, Flags) {
 ///
 /// # Notes
 /// The `res` instructions **do not** affect any flag.
-pub fn res(index: BitIndex, value: u8) -> (u8, Flags) {
+pub const fn res(index: BitIndex, value: u8) -> (u8, Flags) {
     let result = index.clear(value);
     (
         result,

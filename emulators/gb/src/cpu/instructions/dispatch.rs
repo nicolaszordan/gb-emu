@@ -2,6 +2,8 @@ use crate::cpu::CPU;
 
 use super::condition::Condition;
 use super::meta;
+
+#[allow(clippy::wildcard_imports)] // we need and use all the params
 use super::parameter::*;
 
 use emu::MemoryBus;
@@ -80,7 +82,7 @@ impl CPU {
                 self.instr_alu(mem_bus, ALUOperation::from(opcode >> 3), ALU8Param::N8)
             }
             0xC7 | 0xCF | 0xD7 | 0xDF | 0xE7 | 0xEF | 0xF7 | 0xFF => {
-                self.instr_call(mem_bus, CallParam::VEC(opcode as u16 & 0b0011_1000))
+                self.instr_call(mem_bus, CallParam::VEC(u16::from(opcode) & 0b0011_1000))
             }
             0xC9 => self.instr_ret(mem_bus),
             0xCB => self.instr_prefix(mem_bus),
@@ -101,11 +103,11 @@ impl CPU {
 
             0xD3 | 0xE3 | 0xE4 | 0xF4 | 0xDB | 0xEB | 0xEC | 0xFC | 0xDD | 0xED | 0xFD => {
                 // TODO: this  panic! will be changed when we implement CPU states to enter a "bricked" state instead of panicking.
-                panic!("Invalid opcode: 0x{:02X}", opcode);
+                panic!("Invalid opcode: 0x{opcode:02X}");
             }
         };
 
-        meta::UNPREFIXED_INSTRUCTIONS[opcode as usize].cycles as u32 + additional_cycles
+        u32::from(meta::UNPREFIXED_INSTRUCTIONS[opcode as usize].cycles) + additional_cycles
     }
 
     /// Dispatch and execute an instruction from the extended instruction table
@@ -142,7 +144,7 @@ impl CPU {
             ),
         };
 
-        meta::CBPREFIXED_INSTRUCTIONS[opcode as usize].cycles as u32
+        u32::from(meta::CBPREFIXED_INSTRUCTIONS[opcode as usize].cycles)
     }
 }
 

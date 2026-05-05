@@ -6,7 +6,7 @@ pub struct StackController<'a> {
 }
 
 impl<'a> StackController<'a> {
-    pub fn new(sp: &'a mut u16) -> Self {
+    pub const fn new(sp: &'a mut u16) -> Self {
         Self { sp }
     }
 

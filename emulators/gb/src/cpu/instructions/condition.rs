@@ -7,6 +7,7 @@ use crate::cpu::registers::Flags;
 /// - [`Condition::Z`] : "Zero" - check if the zero flag is set.
 /// - [`Condition::NC`] : "Non-Carry" - check if the carry flag is cleared.
 /// - [`Condition::C`] : "Carry" - check if the carry flag is set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Condition {
     /// Non-Zero condition.
     ///
@@ -56,12 +57,12 @@ impl Condition {
     /// assert!(!Condition::NZ.check(&flags));
     /// assert!(Condition::Z.check(&flags));
     /// ```
-    pub fn check(&self, flags: &Flags) -> bool {
+    pub const fn check(self, flags: Flags) -> bool {
         match self {
-            Condition::NZ => !flags.z,
-            Condition::Z => flags.z,
-            Condition::NC => !flags.c,
-            Condition::C => flags.c,
+            Self::NZ => !flags.z,
+            Self::Z => flags.z,
+            Self::NC => !flags.c,
+            Self::C => flags.c,
         }
     }
 }
@@ -118,37 +119,37 @@ mod tests {
     fn check() {
         let mut flags = Flags::new(); // zero'ed flags
 
-        assert!(Condition::NZ.check(&flags));
-        assert!(!Condition::Z.check(&flags));
-        assert!(Condition::NC.check(&flags));
-        assert!(!Condition::C.check(&flags));
+        assert!(Condition::NZ.check(flags));
+        assert!(!Condition::Z.check(flags));
+        assert!(Condition::NC.check(flags));
+        assert!(!Condition::C.check(flags));
 
         flags.z = true;
 
-        assert!(!Condition::NZ.check(&flags));
-        assert!(Condition::Z.check(&flags));
-        assert!(Condition::NC.check(&flags));
-        assert!(!Condition::C.check(&flags));
+        assert!(!Condition::NZ.check(flags));
+        assert!(Condition::Z.check(flags));
+        assert!(Condition::NC.check(flags));
+        assert!(!Condition::C.check(flags));
 
         flags.c = true;
 
-        assert!(!Condition::NZ.check(&flags));
-        assert!(Condition::Z.check(&flags));
-        assert!(!Condition::NC.check(&flags));
-        assert!(Condition::C.check(&flags));
+        assert!(!Condition::NZ.check(flags));
+        assert!(Condition::Z.check(flags));
+        assert!(!Condition::NC.check(flags));
+        assert!(Condition::C.check(flags));
 
         flags.c = false;
 
-        assert!(!Condition::NZ.check(&flags));
-        assert!(Condition::Z.check(&flags));
-        assert!(Condition::NC.check(&flags));
-        assert!(!Condition::C.check(&flags));
+        assert!(!Condition::NZ.check(flags));
+        assert!(Condition::Z.check(flags));
+        assert!(Condition::NC.check(flags));
+        assert!(!Condition::C.check(flags));
 
         flags.z = false;
 
-        assert!(Condition::NZ.check(&flags));
-        assert!(!Condition::Z.check(&flags));
-        assert!(Condition::NC.check(&flags));
-        assert!(!Condition::C.check(&flags));
+        assert!(Condition::NZ.check(flags));
+        assert!(!Condition::Z.check(flags));
+        assert!(Condition::NC.check(flags));
+        assert!(!Condition::C.check(flags));
     }
 }

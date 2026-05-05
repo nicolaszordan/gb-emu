@@ -62,7 +62,7 @@ impl Registers {
     ///
     /// assert_eq!(regs.bc_get(), 0x1234);
     /// ```
-    pub fn bc_get(&self) -> u16 {
+    pub const fn bc_get(&self) -> u16 {
         u16::from_be_bytes([self.b, self.c])
     }
 
@@ -82,7 +82,7 @@ impl Registers {
     /// assert_eq!(regs.b, 0x12);
     /// assert_eq!(regs.c, 0x34);
     /// ```
-    pub fn bc_set(&mut self, value: u16) {
+    pub const fn bc_set(&mut self, value: u16) {
         let [hi, lo] = value.to_be_bytes();
 
         self.b = hi;
@@ -103,7 +103,7 @@ impl Registers {
     ///
     /// assert_eq!(regs.de_get(), 0x1234);
     /// ```
-    pub fn de_get(&self) -> u16 {
+    pub const fn de_get(&self) -> u16 {
         u16::from_be_bytes([self.d, self.e])
     }
 
@@ -123,7 +123,7 @@ impl Registers {
     /// assert_eq!(regs.d, 0x12);
     /// assert_eq!(regs.e, 0x34);
     /// ```
-    pub fn de_set(&mut self, value: u16) {
+    pub const fn de_set(&mut self, value: u16) {
         let [hi, lo] = value.to_be_bytes();
 
         self.d = hi;
@@ -144,7 +144,7 @@ impl Registers {
     ///
     /// assert_eq!(regs.hl_get(), 0x1234);
     /// ```
-    pub fn hl_get(&self) -> u16 {
+    pub const fn hl_get(&self) -> u16 {
         u16::from_be_bytes([self.h, self.l])
     }
 
@@ -164,7 +164,7 @@ impl Registers {
     /// assert_eq!(regs.h, 0x12);
     /// assert_eq!(regs.l, 0x34);
     /// ```
-    pub fn hl_set(&mut self, value: u16) {
+    pub const fn hl_set(&mut self, value: u16) {
         let [hi, lo] = value.to_be_bytes();
 
         self.h = hi;
@@ -241,6 +241,8 @@ impl Registers {
 /// | 4   | Carry       | `C`    | Carry out of bit 7 (or borrow)       |
 ///
 /// Bits 3–0 of `F` are always `0` and are ignored.
+#[allow(clippy::struct_excessive_bools)]
+// the `Flags` struct will be changed in the future to use bitfields, so we can ignore this lint for now (issue #8)
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Flags {
     /// **Zero** Flag.
@@ -292,7 +294,7 @@ impl From<u8> for Flags {
         let h = value & (1 << H_FLAG_OFFSET) != 0;
         let c = value & (1 << C_FLAG_OFFSET) != 0;
 
-        Flags { z, n, h, c }
+        Self { z, n, h, c }
     }
 }
 
