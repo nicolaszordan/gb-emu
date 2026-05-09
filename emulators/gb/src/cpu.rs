@@ -1,14 +1,19 @@
 mod alu;
 mod instructions;
+mod interrupts;
 mod registers;
 mod stack;
 
 use emu::MemoryBus;
+
+use interrupts::InterruptController;
 use registers::Registers;
 use stack::StackController;
 
+use instructions::parameter::CallParam;
+
 #[allow(clippy::upper_case_acronyms)] // we're suppressing this lint to keep the naming consistent with the pan docs
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct CPU {
     /// CPU Registers
     registers: Registers,
@@ -24,7 +29,7 @@ pub struct CPU {
     pc: u16,
 
     /// Interrupt Master Enable flag
-    ime: IME,
+    interrupt_controller: InterruptController,
     // state: CPUState, // for HALT and STOP states?
 }
 
@@ -34,40 +39,20 @@ impl CPU {
             registers: Registers::new(),
             sp: 0,
             pc: 0,
-            ime: IME::Disabled,
+            interrupt_controller: InterruptController::new(),
         }
     }
 
     pub(crate) fn step<M: MemoryBus>(&mut self, mem_bus: &mut M) -> u32 {
-        let opcode = self.fetch_byte(mem_bus);
-        let cycles = self.execute_instruction(mem_bus, opcode);
-        // self.interrupt_check(mem_bus);
-        self.update_ime();
-        cycles
-    }
-
-    // fn interrupt_check<M: MemoryBus>(&mut self, bus: &M) {
-    //     if matches!(self.ime, IME::Enabled) {
-    //         let pending_irqs = self.get_pending_interrupts(bus);
-    //         if pending_irqs != 0 {}
-    //     }
-    // }
-
-    // /// Get the pending enabled interrupts.
-    // fn get_pending_interrupts<M: MemoryBus>(&self, bus: &M) -> u8 {
-    //     let ir = bus.read(IF_ADDR);
-    //     let ie = bus.read(IE_ADDR);
-    //     ir & ie
-    // }
-
-    /// Update IME's state from Pending to Enabled
-    ///
-    /// This is used to emulate the 1 instruction delay after executing the EI
-    /// instruction before the IME is actually enabled.
-    const fn update_ime(&mut self) {
-        if matches!(self.ime, IME::PendingEnable) {
-            self.ime = IME::Enabled;
+        if let Some(jump_vector) = self.interrupt_controller.service_pending_interrupt(mem_bus) {
+            self.instr_call(mem_bus, CallParam::VEC(jump_vector.addr())); // note: this needs to take 5 cycles
         }
+
+        self.interrupt_controller.step();
+
+        let opcode = self.fetch_byte(mem_bus);
+
+        self.execute_instruction(mem_bus, opcode)
     }
 
     const fn stack(&mut self) -> StackController<'_> {
@@ -127,27 +112,7 @@ impl CPU {
     }
 }
 
-#[allow(clippy::upper_case_acronyms)] // we're suppressing this lint to keep the naming consistent with the pan docs
-#[derive(Debug, PartialEq, Eq)]
-enum IME {
-    /// Interrupt Master Enable flag is reset, and will be set after the next
-    /// instruction is executed.
-    PendingEnable,
-
-    /// Interrupt Master Enable flag is set.
-    Enabled,
-
-    /// Interrupt Master Enable flag is reset.
-    Disabled,
-}
-
 const HIGH_MEM_OFFSET: u16 = 0xFF00;
-
-// /// Address of the Interrupt Request Flag register (IF).
-// const IF_ADDR: u16 = 0xFF0F;
-
-// /// Address of the Interrupt Enable register (IE).
-// const IE_ADDR: u16 = 0xFFFF;
 
 #[cfg(test)]
 mod tests {

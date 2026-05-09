@@ -5,10 +5,10 @@ edition = "2024"
 
 [dependencies]
 emu = { path = "../emu" }
+bitflags = "2.11"
 
 [dev-dependencies]
 emu = { path = "../emu", features = ["test-utilities"] }
 
 [lints]
 workspace = true
-

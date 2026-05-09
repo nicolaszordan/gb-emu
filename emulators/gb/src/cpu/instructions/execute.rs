@@ -1,5 +1,5 @@
+use crate::cpu::CPU;
 use crate::cpu::alu;
-use crate::cpu::{CPU, IME};
 
 use super::condition::Condition;
 use super::operand::{Operand8, Operand16};
@@ -384,7 +384,7 @@ impl CPU {
     /// ```
     pub(crate) fn instr_reti<M: MemoryBus>(&mut self, bus: &M) -> u32 {
         self.instr_ret(bus);
-        self.ime = IME::Enabled;
+        self.interrupt_controller.ime_mut().enable_now();
 
         0
     }
@@ -960,7 +960,7 @@ impl CPU {
     /// cpu.step(&mut bus); // ime is enabled for this instruction
     /// ```
     pub(crate) const fn instr_ei(&mut self) -> u32 {
-        self.ime = IME::PendingEnable;
+        self.interrupt_controller.ime_mut().enable();
 
         0
     }
@@ -993,7 +993,7 @@ impl CPU {
     /// assert!(matches!(cpu.ime, IME::Disabled)); // ime is immediately disabled
     /// ```
     pub(crate) const fn instr_di(&mut self) -> u32 {
-        self.ime = IME::Disabled;
+        self.interrupt_controller.ime_mut().disable();
 
         0
     }
@@ -1151,6 +1151,7 @@ mod flag_mask {
 #[cfg(test)]
 #[allow(non_snake_case)] // helps a lot for regs names
 mod tests {
+    use crate::cpu::interrupts::IME;
     use emu::mem::test_utilities::MockMemoryBus as Bus;
 
     use super::*;
@@ -1557,7 +1558,7 @@ mod tests {
                 assert_eq!(cycles, 0);
                 assert_eq!(cpu.pc, 0x5678);
                 assert_eq!(cpu.sp, 0xFFFE); // sp should be back to where it was before the fake call
-                assert!(matches!(cpu.ime, IME::Enabled)); // ime is directly enabled after RETI, not pending enable like EI
+                assert!(matches!(cpu.interrupt_controller.ime(), IME::Enabled)); // ime is directly enabled after RETI, not pending enable like EI
             }
         }
     }
