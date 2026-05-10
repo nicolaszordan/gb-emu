@@ -1,20 +1,11 @@
 use emu::MemoryBus;
 
 #[derive(Debug)]
-pub struct MotherBoard {
-    /// Interrupt Request Flags (IF) - 0xFF0F
-    irq: u8,
-
-    /// Interrupt Enable Flags (IE) - 0xFFFF
-    ie: u8,
-}
+pub struct MotherBoard {}
 
 impl MotherBoard {
     pub fn new() -> Self {
-        Self {
-            irq: 0,
-            ie: 0,
-        }
+        Self {}
     }
 
     pub fn step(&mut self, _cycles: u32) {
@@ -25,6 +16,7 @@ impl MotherBoard {
 }
 
 impl MemoryBus for MotherBoard {
+    #[allow(clippy::match_single_binding)] // suppressing this lint while we wait for the components to be implemented
     fn read(&self, address: u16) -> u8 {
         match address {
             // 0x0000..=0x7FFF => {
@@ -50,21 +42,25 @@ impl MemoryBus for MotherBoard {
             // },
             // 0xFF04..=0xFF07 => {
             //     // Timer registers
-            //     self.timer.read(address)
-            // }
-            0xFF0F => self.irq,
+            // },
+            // 0xFF0F => {
+            //    // Interrupt Flags (IF) register
+            // },
             // 0xFF00..=0xFF7F => {
             //     // I/O registers
             // },
             // 0xFF80..=0xFFFE => {
             //     // High RAM (HRAM)
             // },
-            0xFFFF => self.ie,
+            // 0xFFFF => {
+            //     // Interrupt Enable (IE) register
+            // },
             _ => 0xFF, // reading from unmapped memory returns 0xFF
         }
     }
 
-    fn write(&mut self, address: u16, value: u8) {
+    #[allow(clippy::match_single_binding)] // suppressing this lint while we wait for the components to be implemented
+    fn write(&mut self, address: u16, _value: u8) {
         match address {
             // 0x0000..=0x7FFF => {
             //     // ROM bank 0 (cartridge)
@@ -89,16 +85,19 @@ impl MemoryBus for MotherBoard {
             // },
             // 0xFF04..=0xFF07 => {
             //     // Timer registers
-            //     self.timer.write(address, value)
-            // }
-            0xFF0F => self.irq = value,
+            // },
+            // 0xFF0F => {
+            //    // Interrupt Flags (IF) register
+            // },
             // 0xFF00..=0xFF7F => {
             //     // I/O registers
             // },
             // 0xFF80..=0xFFFE => {
             //     // High RAM (HRAM)
             // },
-            0xFFFF => self.ie = value,
+            // 0xFFFF => {
+            //     // Interrupt Enable (IE) register
+            // },
             _ => (), // writing to unmapped memory is ignored (could also be considered a segmentation fault)
         }
     }
