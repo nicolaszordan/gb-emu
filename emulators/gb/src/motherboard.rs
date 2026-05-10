@@ -4,11 +4,12 @@ use emu::MemoryBus;
 pub struct MotherBoard {}
 
 impl MotherBoard {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
 
-    pub fn step(&mut self, _cycles: u32) {
+    #[allow(clippy::unused_self, clippy::needless_pass_by_ref_mut)] // suppressing these lints while we wait for the components to be implemented
+    pub const fn step(&mut self, _cycles: u32) {
         // self.ppu.step(cycles);
         // self.apu.step(cycles);
         // self.timer.step(cycles);
