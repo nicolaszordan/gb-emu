@@ -384,7 +384,7 @@ impl CPU {
     /// ```
     pub(crate) fn instr_reti<M: MemoryBus>(&mut self, bus: &M) -> u32 {
         self.instr_ret(bus);
-        self.interrupt_controller.ime_mut().enable_now();
+        self.ime.enable_now();
 
         0
     }
@@ -960,7 +960,7 @@ impl CPU {
     /// cpu.step(&mut bus); // ime is enabled for this instruction
     /// ```
     pub(crate) const fn instr_ei(&mut self) -> u32 {
-        self.interrupt_controller.ime_mut().enable();
+        self.ime.enable();
 
         0
     }
@@ -993,7 +993,7 @@ impl CPU {
     /// assert!(matches!(cpu.ime, IME::Disabled)); // ime is immediately disabled
     /// ```
     pub(crate) const fn instr_di(&mut self) -> u32 {
-        self.interrupt_controller.ime_mut().disable();
+        self.ime.disable();
 
         0
     }
@@ -1558,7 +1558,7 @@ mod tests {
                 assert_eq!(cycles, 0);
                 assert_eq!(cpu.pc, 0x5678);
                 assert_eq!(cpu.sp, 0xFFFE); // sp should be back to where it was before the fake call
-                assert!(matches!(cpu.interrupt_controller.ime(), IME::Enabled)); // ime is directly enabled after RETI, not pending enable like EI
+                assert!(matches!(cpu.ime, IME::Enabled)); // ime is directly enabled after RETI, not pending enable like EI
             }
         }
     }

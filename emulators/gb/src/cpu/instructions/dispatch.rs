@@ -1242,7 +1242,7 @@ mod tests {
                 assert_eq!(cycles, 16);
                 assert_eq!(cpu.pc, 0x5678);
                 assert_eq!(cpu.sp, 0xFFFE);
-                assert!(matches!(cpu.interrupt_controller.ime(), IME::Enabled));
+                assert!(matches!(cpu.ime, IME::Enabled));
             }
 
             #[test]

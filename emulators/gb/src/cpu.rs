@@ -6,7 +6,8 @@ mod stack;
 
 use emu::MemoryBus;
 
-use interrupts::InterruptController;
+use crate::interrupts::InterruptLine;
+use interrupts::{IME, InterruptJumpVector};
 use registers::Registers;
 use stack::StackController;
 
@@ -29,7 +30,7 @@ pub struct CPU {
     pc: u16,
 
     /// Interrupt Master Enable flag
-    interrupt_controller: InterruptController,
+    ime: IME,
     // state: CPUState, // for HALT and STOP states?
 }
 
@@ -39,22 +40,45 @@ impl CPU {
             registers: Registers::new(),
             sp: 0,
             pc: 0,
-            interrupt_controller: InterruptController::new(),
+            ime: IME::Disabled,
         }
     }
 
-    pub(crate) fn step<M: MemoryBus>(&mut self, mem_bus: &mut M) -> u32 {
-        if let Some(jump_vector) = self.interrupt_controller.service_pending_interrupt(mem_bus) {
-            self.instr_call(mem_bus, CallParam::VEC(jump_vector.addr())); // note: this needs to take 5 cycles
-        }
+    pub(crate) fn step<M: MemoryBus + InterruptLine>(&mut self, mem_bus: &mut M) -> u32 {
+        let interrupt_cycles = self.dispatch_pending_interrupt(mem_bus);
 
-        self.interrupt_controller.step();
+        self.ime.commit_pending();
 
         let opcode = self.fetch_byte(mem_bus);
-
-        self.execute_instruction(mem_bus, opcode)
+        self.execute_instruction(mem_bus, opcode) + interrupt_cycles
     }
 
+    /// Dispatch the highest-priority pending interrupt when IME is enabled.
+    ///
+    /// Returns the number of cycles taken to handle the interrupt, or 0 if no interrupt was dispatched.
+    ///
+    /// This method will disable IME and acknowledge the interrupt on the bus if an interrupt is dispatched.
+    fn dispatch_pending_interrupt<M: MemoryBus + InterruptLine>(&mut self, mem_bus: &mut M) -> u32 {
+        if self.ime != IME::Enabled {
+            return 0;
+        }
+
+        let Some(pending) = mem_bus.pending_interrupt() else {
+            return 0;
+        };
+
+        self.ime.disable();
+        mem_bus.acknowledge_interrupt(pending);
+
+        self.instr_call(
+            mem_bus,
+            CallParam::VEC(InterruptJumpVector::from(pending).addr()),
+        );
+
+        5
+    }
+
+    /// Get a stack controller for the CPU's stack pointer.
     const fn stack(&mut self) -> StackController<'_> {
         StackController::new(&mut self.sp)
     }
@@ -112,6 +136,7 @@ impl CPU {
     }
 }
 
+// TODO: move this to a more appropriate module
 const HIGH_MEM_OFFSET: u16 = 0xFF00;
 
 #[cfg(test)]

@@ -1,5 +1,7 @@
-pub(crate) mod cpu;
-pub(crate) mod motherboard;
+pub(crate) mod interrupts;
+
+mod cpu;
+mod motherboard;
 
 use cpu::CPU;
 use motherboard::MotherBoard;

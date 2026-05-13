@@ -1,9 +1,32 @@
-mod flags;
-mod registers;
+use crate::interrupts::Interrupt;
 
-use emu::MemoryBus;
+// #[must_use = "This struct is used to represent an interupt to be serviced, IF bit is already cleared, and the IME flag is already disabled when this struct is created. So if it's not used, the interrupt will be lost and never serviced."]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InterruptJumpVector(u16);
 
-use flags::{InterruptFlags, InterruptJumpVector, InterruptRequest};
+impl InterruptJumpVector {
+    pub const fn addr(self) -> u16 {
+        self.0
+    }
+}
+
+const VBLANK_JUMP_VECTOR: InterruptJumpVector = InterruptJumpVector(0x40);
+const LCD_STAT_JUMP_VECTOR: InterruptJumpVector = InterruptJumpVector(0x48);
+const TIMER_JUMP_VECTOR: InterruptJumpVector = InterruptJumpVector(0x50);
+const SERIAL_JUMP_VECTOR: InterruptJumpVector = InterruptJumpVector(0x58);
+const JOYPAD_JUMP_VECTOR: InterruptJumpVector = InterruptJumpVector(0x60);
+
+impl From<Interrupt> for InterruptJumpVector {
+    fn from(interrupt: Interrupt) -> Self {
+        match interrupt {
+            Interrupt::VBlank => VBLANK_JUMP_VECTOR,
+            Interrupt::LCDStat => LCD_STAT_JUMP_VECTOR,
+            Interrupt::Timer => TIMER_JUMP_VECTOR,
+            Interrupt::Serial => SERIAL_JUMP_VECTOR,
+            Interrupt::Joypad => JOYPAD_JUMP_VECTOR,
+        }
+    }
+}
 
 /// Interrupt Master Enable (IME) flag.
 ///
@@ -46,71 +69,15 @@ impl IME {
     pub const fn enable_now(&mut self) {
         *self = Self::Enabled;
     }
-}
 
-#[derive(Debug)]
-pub struct InterruptController {
-    ime: IME,
-}
-
-impl InterruptController {
-    pub const fn new() -> Self {
-        Self { ime: IME::Disabled }
-    }
-
-    pub const fn step(&mut self) {
-        if matches!(self.ime, IME::PendingEnable) {
-            self.ime = IME::Enabled;
-        }
-    }
-
-    pub const fn ime_mut(&mut self) -> &mut IME {
-        &mut self.ime
-    }
-
-    /// Returns the address of the interrupt vector corresponding to the highest
-    /// priority pending interrupt. Or `None` if no interrupts are pending or
-    /// if IME is not enabled.
+    /// Transition from `PendingEnable` to `Enabled`. No-op in other states.
     ///
-    pub fn service_pending_interrupt<M: MemoryBus>(
-        &mut self,
-        bus: &mut M,
-    ) -> Option<InterruptJumpVector> {
-        if matches!(self.ime, IME::Enabled) {
-            let requested_interrupts = registers::flags::read(bus);
-            let enabled_interrupts = registers::enable::read(bus);
-            let pending_interrupts = requested_interrupts & enabled_interrupts;
-
-            if pending_interrupts.is_empty() {
-                None
-            } else {
-                self.ime.disable(); // disable IME immediately when servicing an interrupt
-
-                // SAFETY: we just checked that pending_interrupts is not empty, so we know that find_highest_priority_interrupt_request will return Some, so unwrap_unchecked is safe here.
-                let InterruptRequest { flag, jump_vector } =
-                    unsafe { pending_interrupts.try_into().unwrap_unchecked() };
-
-                // Clear the IF flag corresponding to the interrupt being serviced
-                registers::flags::write(bus, requested_interrupts & !flag);
-
-                Some(jump_vector)
-            }
-        } else {
-            None
+    /// Call once per CPU step, after interrupt dispatch, to honour the one-cycle
+    /// delay introduced by the EI instruction.
+    pub const fn commit_pending(&mut self) {
+        if matches!(self, Self::PendingEnable) {
+            *self = Self::Enabled;
         }
-    }
-}
-
-#[cfg(test)]
-impl InterruptController {
-    pub const fn ime(&self) -> &IME {
-        &self.ime
-    }
-}
-
-impl Default for InterruptController {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
