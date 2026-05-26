@@ -1,6 +1,7 @@
 use crate::interrupts::Interrupt;
 
-// #[must_use = "This struct is used to represent an interupt to be serviced, IF bit is already cleared, and the IME flag is already disabled when this struct is created. So if it's not used, the interrupt will be lost and never serviced."]
+pub const INTERRUPT_DISPATCH_CYCLES: u32 = 5;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InterruptJumpVector(u16);
 
@@ -37,7 +38,7 @@ impl From<Interrupt> for InterruptJumpVector {
 /// disabled by DI (and the CPU when jumping to an interrupt vector).
 ///
 /// Note that EI doesn't enable the interrupts the same cycle it is executed,
-/// but the next cycle
+/// but the next cycle.
 #[allow(clippy::upper_case_acronyms)] // we're suppressing this lint to keep the naming consistent with the pan docs
 #[derive(Debug, PartialEq, Eq)]
 pub enum IME {
@@ -82,4 +83,44 @@ impl IME {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+
+    mod ime {
+        use super::*;
+
+        #[test]
+        fn ime_enable() {
+            let mut ime = IME::Disabled;
+            ime.enable();
+            assert_eq!(ime, IME::PendingEnable);
+            ime.commit_pending();
+            assert_eq!(ime, IME::Enabled);
+        }
+
+        #[test]
+        fn ime_disable() {
+            let mut ime = IME::Enabled;
+            ime.disable();
+            assert_eq!(ime, IME::Disabled);
+        }
+
+        #[test]
+        fn ime_enable_now() {
+            let mut ime = IME::Disabled;
+            ime.enable_now();
+            assert_eq!(ime, IME::Enabled);
+        }
+
+        #[test]
+        fn ime_commit_pending_noop() {
+            let mut ime = IME::Disabled;
+            ime.commit_pending();
+            assert_eq!(ime, IME::Disabled);
+
+            ime.enable_now();
+            ime.commit_pending();
+            assert_eq!(ime, IME::Enabled);
+        }
+    }
+}

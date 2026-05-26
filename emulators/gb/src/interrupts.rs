@@ -16,7 +16,7 @@ bitflags! {
 
 /// Represents a single interrupt that can be serviced by the CPU.
 ///
-/// This struct is used to represent an interrupt to be serviced or requested.
+/// This enum is used to represent an interrupt to be serviced or requested.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Interrupt {
     VBlank,

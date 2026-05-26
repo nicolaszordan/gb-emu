@@ -1453,17 +1453,27 @@ mod tests {
         }
 
         #[test]
-        #[ignore = "requires interrupt handling -- not yet implemented"]
         fn EI() {
-            // EI 0xFB
-            todo!()
+            let mut cpu = CPU::new();
+            let mut bus = Bus::new();
+
+            let cycles = cpu.execute_instruction(&mut bus, 0xFB); // EI
+
+            assert_eq!(cycles, 4);
+            assert!(matches!(cpu.ime, IME::PendingEnable));
         }
 
         #[test]
-        #[ignore = "requires interrupt handling -- not yet implemented"]
         fn DI() {
-            // DI 0xF3
-            todo!()
+            let mut cpu = CPU::new();
+            let mut bus = Bus::new();
+
+            cpu.ime = IME::Enabled; // start with interrupts enabled
+
+            let cycles = cpu.execute_instruction(&mut bus, 0xF3); // DI
+
+            assert_eq!(cycles, 4);
+            assert!(matches!(cpu.ime, IME::Disabled));
         }
 
         #[test]

@@ -2653,6 +2653,28 @@ mod tests {
             todo!()
         }
 
+        #[test]
+        fn ei() {
+            let mut cpu = CPU::new();
+
+            let cycles = cpu.instr_ei();
+
+            assert_eq!(cycles, 0);
+            assert!(matches!(cpu.ime, IME::PendingEnable));
+        }
+
+        #[test]
+        fn di() {
+            let mut cpu = CPU::new();
+
+            cpu.ime = IME::Enabled;
+
+            let cycles = cpu.instr_di();
+
+            assert_eq!(cycles, 0);
+            assert!(matches!(cpu.ime, IME::Disabled));
+        }
+
         mod daa {
             use super::*;
 
