@@ -1,5 +1,5 @@
+use crate::cpu::CPU;
 use crate::cpu::alu;
-use crate::cpu::{CPU, IME};
 
 use super::condition::Condition;
 use super::operand::{Operand8, Operand16};
@@ -384,7 +384,7 @@ impl CPU {
     /// ```
     pub(crate) fn instr_reti<M: MemoryBus>(&mut self, bus: &M) -> u32 {
         self.instr_ret(bus);
-        self.ime = IME::Enabled;
+        self.ime.enable_now();
 
         0
     }
@@ -960,7 +960,7 @@ impl CPU {
     /// cpu.step(&mut bus); // ime is enabled for this instruction
     /// ```
     pub(crate) const fn instr_ei(&mut self) -> u32 {
-        self.ime = IME::PendingEnable;
+        self.ime.enable();
 
         0
     }
@@ -993,7 +993,7 @@ impl CPU {
     /// assert!(matches!(cpu.ime, IME::Disabled)); // ime is immediately disabled
     /// ```
     pub(crate) const fn instr_di(&mut self) -> u32 {
-        self.ime = IME::Disabled;
+        self.ime.disable();
 
         0
     }
@@ -1151,6 +1151,7 @@ mod flag_mask {
 #[cfg(test)]
 #[allow(non_snake_case)] // helps a lot for regs names
 mod tests {
+    use crate::cpu::interrupts::IME;
     use emu::mem::test_utilities::MockMemoryBus as Bus;
 
     use super::*;
@@ -2650,6 +2651,28 @@ mod tests {
         #[ignore = "requires interrupt handling -- not yet implemented"]
         fn stop() {
             todo!()
+        }
+
+        #[test]
+        fn ei() {
+            let mut cpu = CPU::new();
+
+            let cycles = cpu.instr_ei();
+
+            assert_eq!(cycles, 0);
+            assert!(matches!(cpu.ime, IME::PendingEnable));
+        }
+
+        #[test]
+        fn di() {
+            let mut cpu = CPU::new();
+
+            cpu.ime = IME::Enabled;
+
+            let cycles = cpu.instr_di();
+
+            assert_eq!(cycles, 0);
+            assert!(matches!(cpu.ime, IME::Disabled));
         }
 
         mod daa {

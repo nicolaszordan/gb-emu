@@ -1,11 +1,20 @@
+mod interrupts;
+
 use emu::MemoryBus;
 
+use crate::interrupts::{Interrupt, InterruptLine};
+use interrupts::{IE_ADDRESS, IF_ADDRESS, InterruptRegisters};
+
 #[derive(Debug)]
-pub struct MotherBoard {}
+pub struct MotherBoard {
+    interrupt_registers: InterruptRegisters,
+}
 
 impl MotherBoard {
     pub const fn new() -> Self {
-        Self {}
+        Self {
+            interrupt_registers: InterruptRegisters::new(),
+        }
     }
 
     #[allow(clippy::unused_self, clippy::needless_pass_by_ref_mut)] // suppressing these lints while we wait for the components to be implemented
@@ -44,24 +53,22 @@ impl MemoryBus for MotherBoard {
             // 0xFF04..=0xFF07 => {
             //     // Timer registers
             // },
-            // 0xFF0F => {
-            //    // Interrupt Flags (IF) register
-            // },
+            IE_ADDRESS | IF_ADDRESS => {
+                // Interrupt registers
+                self.interrupt_registers.read(address)
+            }
             // 0xFF00..=0xFF7F => {
             //     // I/O registers
             // },
             // 0xFF80..=0xFFFE => {
             //     // High RAM (HRAM)
             // },
-            // 0xFFFF => {
-            //     // Interrupt Enable (IE) register
-            // },
             _ => 0xFF, // reading from unmapped memory returns 0xFF
         }
     }
 
     #[allow(clippy::match_single_binding)] // suppressing this lint while we wait for the components to be implemented
-    fn write(&mut self, address: u16, _value: u8) {
+    fn write(&mut self, address: u16, value: u8) {
         match address {
             // 0x0000..=0x7FFF => {
             //     // ROM bank 0 (cartridge)
@@ -87,20 +94,28 @@ impl MemoryBus for MotherBoard {
             // 0xFF04..=0xFF07 => {
             //     // Timer registers
             // },
-            // 0xFF0F => {
-            //    // Interrupt Flags (IF) register
-            // },
+            IE_ADDRESS | IF_ADDRESS => {
+                // Interrupt registers
+                self.interrupt_registers.write(address, value);
+            }
             // 0xFF00..=0xFF7F => {
             //     // I/O registers
             // },
             // 0xFF80..=0xFFFE => {
             //     // High RAM (HRAM)
             // },
-            // 0xFFFF => {
-            //     // Interrupt Enable (IE) register
-            // },
             _ => (), // writing to unmapped memory is ignored (could also be considered a segmentation fault)
         }
+    }
+}
+
+impl InterruptLine for MotherBoard {
+    fn pending_interrupt(&self) -> Option<Interrupt> {
+        self.interrupt_registers.pending_interrupt()
+    }
+
+    fn acknowledge_interrupt(&mut self, interrupt: Interrupt) {
+        self.interrupt_registers.acknowledge_interrupt(interrupt);
     }
 }
 
