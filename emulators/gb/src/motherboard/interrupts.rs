@@ -97,7 +97,7 @@ impl MemoryBus for InterruptRegisters {
         match address {
             IF_ADDRESS => self.interrupt_flags.bits(),
             IE_ADDRESS => self.interrupt_enable.bits(),
-            _ => 0, // For addresses that don't correspond to IF or IE, return 0
+            _ => unreachable!("mb dispatch error: invalid interrupt register address"),
         }
     }
 
@@ -105,7 +105,7 @@ impl MemoryBus for InterruptRegisters {
         match address {
             IF_ADDRESS => self.interrupt_flags = InterruptFlags::from_bits_truncate(value),
             IE_ADDRESS => self.interrupt_enable = InterruptFlags::from_bits_truncate(value),
-            _ => (), // For addresses that don't correspond to IF or IE, do nothing
+            _ => unreachable!("mb dispatch error: invalid interrupt register address"),
         }
     }
 }

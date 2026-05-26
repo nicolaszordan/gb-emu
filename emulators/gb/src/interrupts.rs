@@ -36,6 +36,7 @@ pub enum Interrupt {
 pub trait InterruptLine {
     /// Returns the highest priority enabled pending interrupt, if any. Returns `None`
     /// if no enabled interrupts are pending.
+    #[must_use]
     fn pending_interrupt(&self) -> Option<Interrupt>;
 
     /// Acknowledge an interrupt.

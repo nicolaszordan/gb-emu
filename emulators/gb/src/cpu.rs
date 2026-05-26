@@ -14,7 +14,7 @@ use stack::StackController;
 use instructions::parameter::CallParam;
 
 #[allow(clippy::upper_case_acronyms)] // we're suppressing this lint to keep the naming consistent with the pan docs
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CPU {
     /// CPU Registers
     registers: Registers,
