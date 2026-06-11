@@ -3,6 +3,7 @@ mod instructions;
 mod interrupts;
 mod registers;
 mod stack;
+mod state;
 
 use emu::MemoryBus;
 
@@ -10,6 +11,7 @@ use crate::interrupts::InterruptLine;
 use interrupts::{IME, INTERRUPT_DISPATCH_CYCLES, InterruptJumpVector};
 use registers::Registers;
 use stack::StackController;
+use state::CPUState;
 
 use instructions::parameter::CallParam;
 
@@ -30,17 +32,24 @@ pub struct CPU {
     pc: u16,
 
     /// Interrupt Master Enable flag
+    ///
+    /// Controls whether the CPU will jump to interrupt vectors when an interrupt is requested.
     ime: IME,
-    // state: CPUState, // for HALT and STOP states?
+
+    /// Current state of the CPU
+    ///
+    /// Used to manage halting and stopping behavior.
+    state: CPUState,
 }
 
 impl CPU {
     pub(crate) fn new() -> Self {
         Self {
             registers: Registers::new(),
-            sp: 0,
-            pc: 0,
+            sp: 0x00,
+            pc: 0x00,
             ime: IME::Disabled,
+            state: CPUState::Running,
         }
     }
 
@@ -60,7 +69,7 @@ impl CPU {
 
     /// Dispatch the highest-priority pending interrupt when IME is enabled.
     ///
-    /// Returns the number of cycles taken to handle the interrupt, or 0 if no interrupt was dispatched.
+    /// Returns the number of cycles taken to handle the interrupt, or `None` if no interrupt was dispatched.
     ///
     /// This method will disable IME and acknowledge the interrupt on the bus if an interrupt is dispatched.
     fn try_dispatch_pending_interrupt<M: MemoryBus + InterruptLine>(
@@ -68,10 +77,12 @@ impl CPU {
         mem_bus: &mut M,
     ) -> Option<u32> {
         if self.ime != IME::Enabled {
+            // IME is not enabled, nothing to do
             return None;
         }
 
         let Some(pending) = mem_bus.pending_interrupt() else {
+            // No pending interrupts, nothing to do
             return None;
         };
 
