@@ -1,4 +1,5 @@
 use crate::cpu::CPU;
+use crate::interrupts::InterruptBus;
 
 use super::condition::Condition;
 use super::meta;
@@ -11,94 +12,96 @@ use emu::MemoryBus;
 impl CPU {
     /// Dispatch and execute an instruction from the main instruction table
     /// designated by `opcode`.
-    pub(crate) fn execute_instruction<M: MemoryBus>(&mut self, mem_bus: &mut M, opcode: u8) -> u32 {
+    pub(crate) fn execute_instruction<B: MemoryBus + InterruptBus>(
+        &mut self,
+        bus: &mut B,
+        opcode: u8,
+    ) -> u32 {
         let additional_cycles = match opcode {
             0x00 => {
                 // NOP
                 0
             }
-            0x01 | 0x11 | 0x21 | 0x31 => self.instr_ld16(
-                mem_bus,
-                R16Param::from(opcode >> 4).into(),
-                LD16SrcParam::N16,
-            ),
+            0x01 | 0x11 | 0x21 | 0x31 => {
+                self.instr_ld16(bus, R16Param::from(opcode >> 4).into(), LD16SrcParam::N16)
+            }
             0x02 | 0x12 | 0x22 | 0x32 => self.instr_ld8(
-                mem_bus,
+                bus,
                 R16MemParam::from(opcode >> 4).into(),
                 R8Param::A.into(),
             ),
-            0x03 | 0x13 | 0x23 | 0x33 => self.instr_inc16(mem_bus, R16Param::from(opcode >> 4)),
+            0x03 | 0x13 | 0x23 | 0x33 => self.instr_inc16(bus, R16Param::from(opcode >> 4)),
             0x04 | 0x0C | 0x14 | 0x1C | 0x24 | 0x2C | 0x34 | 0x3C => {
-                self.instr_inc8(mem_bus, R8Param::from(opcode >> 3))
+                self.instr_inc8(bus, R8Param::from(opcode >> 3))
             }
             0x05 | 0x0D | 0x15 | 0x1D | 0x25 | 0x2D | 0x35 | 0x3D => {
-                self.instr_dec8(mem_bus, R8Param::from(opcode >> 3))
+                self.instr_dec8(bus, R8Param::from(opcode >> 3))
             }
             0x06 | 0x0E | 0x16 | 0x1E | 0x26 | 0x2E | 0x36 | 0x3E => {
-                self.instr_ld8(mem_bus, R8Param::from(opcode >> 3).into(), LD8SrcParam::N8)
+                self.instr_ld8(bus, R8Param::from(opcode >> 3).into(), LD8SrcParam::N8)
             }
             0x07 | 0x0F | 0x17 | 0x1F => {
-                self.instr_rotate_acc(mem_bus, BitRotateOperation::from(opcode >> 3))
+                self.instr_rotate_acc(bus, BitRotateOperation::from(opcode >> 3))
             }
-            0x08 => self.instr_ld16(mem_bus, LD16DstParam::IndN16, LD16SrcParam::SP),
-            0x09 | 0x19 | 0x29 | 0x39 => self.instr_add16(mem_bus, R16Param::from(opcode >> 4)),
+            0x08 => self.instr_ld16(bus, LD16DstParam::IndN16, LD16SrcParam::SP),
+            0x09 | 0x19 | 0x29 | 0x39 => self.instr_add16(bus, R16Param::from(opcode >> 4)),
             0x0A | 0x1A | 0x2A | 0x3A => self.instr_ld8(
-                mem_bus,
+                bus,
                 R8Param::A.into(),
                 R16MemParam::from(opcode >> 4).into(),
             ),
-            0x0B | 0x1B | 0x2B | 0x3B => self.instr_dec16(mem_bus, R16Param::from(opcode >> 4)),
+            0x0B | 0x1B | 0x2B | 0x3B => self.instr_dec16(bus, R16Param::from(opcode >> 4)),
             0x10 => self.instr_stop(),
-            0x18 => self.instr_jump(mem_bus, JumpParam::PCE8),
+            0x18 => self.instr_jump(bus, JumpParam::PCE8),
             0x20 | 0x28 | 0x30 | 0x38 => {
-                self.instr_cond_jump(mem_bus, Condition::from(opcode >> 3), JumpParam::PCE8)
+                self.instr_cond_jump(bus, Condition::from(opcode >> 3), JumpParam::PCE8)
             }
             0x27 => self.instr_daa(),
             0x2F => self.instr_cpl(),
             0x37 => self.instr_scf(),
             0x3F => self.instr_ccf(),
-            0x76 => self.instr_halt(),
+            0x76 => self.instr_halt(bus),
             0x40..=0x7F => self.instr_ld8(
-                mem_bus,
+                bus,
                 R8Param::from(opcode >> 3).into(),
                 R8Param::from(opcode).into(),
             ),
             0x80..=0xBF => self.instr_alu(
-                mem_bus,
+                bus,
                 ALUOperation::from(opcode >> 3),
                 R8Param::from(opcode).into(),
             ),
-            0xC0 | 0xC8 | 0xD0 | 0xD8 => self.instr_cond_ret(mem_bus, Condition::from(opcode >> 3)),
-            0xC1 | 0xD1 | 0xE1 | 0xF1 => self.instr_pop(mem_bus, R16StackParam::from(opcode >> 4)),
+            0xC0 | 0xC8 | 0xD0 | 0xD8 => self.instr_cond_ret(bus, Condition::from(opcode >> 3)),
+            0xC1 | 0xD1 | 0xE1 | 0xF1 => self.instr_pop(bus, R16StackParam::from(opcode >> 4)),
             0xC2 | 0xCA | 0xD2 | 0xDA => {
-                self.instr_cond_jump(mem_bus, Condition::from(opcode >> 3), JumpParam::N16)
+                self.instr_cond_jump(bus, Condition::from(opcode >> 3), JumpParam::N16)
             }
-            0xC3 => self.instr_jump(mem_bus, JumpParam::N16),
+            0xC3 => self.instr_jump(bus, JumpParam::N16),
             0xC4 | 0xCC | 0xD4 | 0xDC => {
-                self.instr_cond_call(mem_bus, Condition::from(opcode >> 3), CallParam::N16)
+                self.instr_cond_call(bus, Condition::from(opcode >> 3), CallParam::N16)
             }
-            0xC5 | 0xD5 | 0xE5 | 0xF5 => self.instr_push(mem_bus, R16StackParam::from(opcode >> 4)),
+            0xC5 | 0xD5 | 0xE5 | 0xF5 => self.instr_push(bus, R16StackParam::from(opcode >> 4)),
             0xC6 | 0xCE | 0xD6 | 0xDE | 0xE6 | 0xEE | 0xF6 | 0xFE => {
-                self.instr_alu(mem_bus, ALUOperation::from(opcode >> 3), ALU8Param::N8)
+                self.instr_alu(bus, ALUOperation::from(opcode >> 3), ALU8Param::N8)
             }
             0xC7 | 0xCF | 0xD7 | 0xDF | 0xE7 | 0xEF | 0xF7 | 0xFF => {
-                self.instr_call(mem_bus, CallParam::VEC(u16::from(opcode) & 0b0011_1000))
+                self.instr_call(bus, CallParam::VEC(u16::from(opcode) & 0b0011_1000))
             }
-            0xC9 => self.instr_ret(mem_bus),
-            0xCB => self.instr_prefix(mem_bus),
-            0xCD => self.instr_call(mem_bus, CallParam::N16),
-            0xD9 => self.instr_reti(mem_bus),
-            0xE0 => self.instr_ld8(mem_bus, LD8DstParam::IndHighMemA8, R8Param::A.into()),
-            0xE2 => self.instr_ld8(mem_bus, LD8DstParam::IndHighMemC, R8Param::A.into()),
-            0xE8 => self.instr_add_spe8(mem_bus, AddSPe8DstParam::SP),
-            0xE9 => self.instr_jump(mem_bus, JumpParam::HL),
-            0xEA => self.instr_ld8(mem_bus, LD8DstParam::IndN16, R8Param::A.into()),
-            0xF0 => self.instr_ld8(mem_bus, R8Param::A.into(), LD8SrcParam::IndHighMemA8),
-            0xF2 => self.instr_ld8(mem_bus, R8Param::A.into(), LD8SrcParam::IndHighMemC),
+            0xC9 => self.instr_ret(bus),
+            0xCB => self.instr_prefix(bus),
+            0xCD => self.instr_call(bus, CallParam::N16),
+            0xD9 => self.instr_reti(bus),
+            0xE0 => self.instr_ld8(bus, LD8DstParam::IndHighMemA8, R8Param::A.into()),
+            0xE2 => self.instr_ld8(bus, LD8DstParam::IndHighMemC, R8Param::A.into()),
+            0xE8 => self.instr_add_spe8(bus, AddSPe8DstParam::SP),
+            0xE9 => self.instr_jump(bus, JumpParam::HL),
+            0xEA => self.instr_ld8(bus, LD8DstParam::IndN16, R8Param::A.into()),
+            0xF0 => self.instr_ld8(bus, R8Param::A.into(), LD8SrcParam::IndHighMemA8),
+            0xF2 => self.instr_ld8(bus, R8Param::A.into(), LD8SrcParam::IndHighMemC),
             0xF3 => self.instr_di(),
-            0xF8 => self.instr_add_spe8(mem_bus, AddSPe8DstParam::HL),
-            0xF9 => self.instr_ld16(mem_bus, R16Param::SP.into(), LD16SrcParam::HL),
-            0xFA => self.instr_ld8(mem_bus, R8Param::A.into(), LD8SrcParam::IndN16),
+            0xF8 => self.instr_add_spe8(bus, AddSPe8DstParam::HL),
+            0xF9 => self.instr_ld16(bus, R16Param::SP.into(), LD16SrcParam::HL),
+            0xFA => self.instr_ld8(bus, R8Param::A.into(), LD8SrcParam::IndN16),
             0xFB => self.instr_ei(),
 
             0xD3 | 0xE3 | 0xE4 | 0xF4 | 0xDB | 0xEB | 0xEC | 0xFC | 0xDD | 0xED | 0xFD => {
@@ -152,7 +155,8 @@ impl CPU {
 #[allow(non_snake_case)] // help A LOT to have upper cases for instr names and regs
 mod tests {
     use crate::cpu::interrupts::IME;
-    use emu::mem::test_utilities::MockMemoryBus as Bus;
+    use crate::cpu::state::CPUState;
+    use crate::cpu::tests::MockInterruptBus as Bus;
 
     use super::*;
 
@@ -236,12 +240,12 @@ mod tests {
 
             cpu.registers.h = 0x12;
             cpu.registers.l = 0x34;
-            bus.mem[0x1234] = 0x56;
+            bus.write(0x1234, 0x56);
             let cycles = cpu.execute_instruction(&mut bus, 0x6E); // LD L [HL]
 
             assert_eq!(cycles, 8);
             assert_eq!(cpu.registers.l, 0x56);
-            assert_eq!(bus.mem[0x1234], 0x56);
+            assert_eq!(bus.read(0x1234), 0x56);
         }
 
         #[test]
@@ -251,12 +255,12 @@ mod tests {
 
             cpu.registers.h = 0x12;
             cpu.registers.l = 0x34;
-            bus.mem[0x1234] = 0x56;
+            bus.write(0x1234, 0x56);
             cpu.registers.a = 0x01;
             let cycles = cpu.execute_instruction(&mut bus, 0x77); // LD [HL] A
 
             assert_eq!(cycles, 8);
-            assert_eq!(bus.mem[0x1234], 0x01);
+            assert_eq!(bus.read(0x1234), 0x01);
             assert_eq!(cpu.registers.a, 0x01);
         }
 
@@ -279,13 +283,13 @@ mod tests {
 
             cpu.registers.e = 0x12;
             cpu.pc = 0x0034;
-            bus.mem[0x0034] = 0x56;
+            bus.write(0x0034, 0x56);
             let cycles = cpu.execute_instruction(&mut bus, 0x1E); // LD E n8
 
             assert_eq!(cycles, 8);
             assert_eq!(cpu.pc, 0x35);
             assert_eq!(cpu.registers.e, 0x56);
-            assert_eq!(bus.mem[0x0034], 0x56);
+            assert_eq!(bus.read(0x0034), 0x56);
         }
 
         #[test]
@@ -296,16 +300,16 @@ mod tests {
             cpu.registers.h = 0x12;
             cpu.registers.l = 0x34;
             cpu.pc = 0x0034;
-            bus.mem[0x0034] = 0x56;
-            bus.mem[0x1234] = 0x78;
+            bus.write(0x0034, 0x56);
+            bus.write(0x1234, 0x78);
             let cycles = cpu.execute_instruction(&mut bus, 0x36); // LD [HL] n8
 
             assert_eq!(cycles, 12);
             assert_eq!(cpu.pc, 0x35);
             assert_eq!(cpu.registers.h, 0x12);
             assert_eq!(cpu.registers.l, 0x34);
-            assert_eq!(bus.mem[0x1234], 0x56);
-            assert_eq!(bus.mem[0x0034], 0x56);
+            assert_eq!(bus.read(0x1234), 0x56);
+            assert_eq!(bus.read(0x0034), 0x56);
         }
 
         #[test]
@@ -315,12 +319,12 @@ mod tests {
 
             cpu.registers.b = 0x12;
             cpu.registers.c = 0x34;
-            bus.mem[0x1234] = 0x56;
+            bus.write(0x1234, 0x56);
             let cycles = cpu.execute_instruction(&mut bus, 0x0A); // LD A [BC]
 
             assert_eq!(cycles, 8);
             assert_eq!(cpu.registers.a, 0x56);
-            assert_eq!(bus.mem[0x1234], 0x56);
+            assert_eq!(bus.read(0x1234), 0x56);
         }
 
         #[test]
@@ -330,12 +334,12 @@ mod tests {
 
             cpu.registers.d = 0x12;
             cpu.registers.e = 0x34;
-            bus.mem[0x1234] = 0x56;
+            bus.write(0x1234, 0x56);
             let cycles = cpu.execute_instruction(&mut bus, 0x1A); // LD A [DE]
 
             assert_eq!(cycles, 8);
             assert_eq!(cpu.registers.a, 0x56);
-            assert_eq!(bus.mem[0x1234], 0x56);
+            assert_eq!(bus.read(0x1234), 0x56);
         }
 
         #[test]
@@ -345,13 +349,13 @@ mod tests {
 
             cpu.registers.h = 0x12;
             cpu.registers.l = 0x34;
-            bus.mem[0x1234] = 0x56;
+            bus.write(0x1234, 0x56);
 
             let cycles = cpu.execute_instruction(&mut bus, 0x2A); // LD A [HL+]
 
             assert_eq!(cycles, 8);
             assert_eq!(cpu.registers.a, 0x56);
-            assert_eq!(bus.mem[0x1234], 0x56);
+            assert_eq!(bus.read(0x1234), 0x56);
             assert_eq!(cpu.registers.hl_get(), 0x1235);
         }
 
@@ -362,12 +366,12 @@ mod tests {
 
             cpu.registers.d = 0x12;
             cpu.registers.e = 0x34;
-            bus.mem[0x1234] = 0x56;
+            bus.write(0x1234, 0x56);
             cpu.registers.a = 0x78;
             let cycles = cpu.execute_instruction(&mut bus, 0x12); // LD [DE] A
 
             assert_eq!(cycles, 8);
-            assert_eq!(bus.mem[0x1234], 0x78);
+            assert_eq!(bus.read(0x1234), 0x78);
             assert_eq!(cpu.registers.a, 0x78);
         }
 
@@ -378,12 +382,12 @@ mod tests {
 
             cpu.registers.h = 0x12;
             cpu.registers.l = 0x34;
-            bus.mem[0x1234] = 0x56;
+            bus.write(0x1234, 0x56);
             cpu.registers.a = 0x78;
             let cycles = cpu.execute_instruction(&mut bus, 0x32); // LD [HL-] A
 
             assert_eq!(cycles, 8);
-            assert_eq!(bus.mem[0x1234], 0x78);
+            assert_eq!(bus.read(0x1234), 0x78);
             assert_eq!(cpu.registers.a, 0x78);
             assert_eq!(cpu.registers.hl_get(), 0x1233);
         }
@@ -394,12 +398,12 @@ mod tests {
             let mut bus = Bus::new();
 
             cpu.pc = 0x1234;
-            bus.mem[0x1234] = 0x56;
+            bus.write(0x1234, 0x56);
             cpu.registers.a = 0x78;
             let cycles = cpu.execute_instruction(&mut bus, 0xE0); // LD [0xFF00 + n8] A
 
             assert_eq!(cycles, 12);
-            assert_eq!(bus.mem[0xFF56], 0x78);
+            assert_eq!(bus.read(0xFF56), 0x78);
             assert_eq!(cpu.registers.a, 0x78);
             assert_eq!(cpu.pc, 0x1235);
         }
@@ -412,12 +416,12 @@ mod tests {
                 let mut bus = Bus::new();
 
                 cpu.registers.c = 0x34;
-                bus.mem[0xFF34] = 0x56;
+                bus.write(0xFF34, 0x56);
                 let cycles = cpu.execute_instruction(&mut bus, 0xF2); // LD A [0xFF00 + C]
 
                 assert_eq!(cycles, 8);
                 assert_eq!(cpu.registers.a, 0x56);
-                assert_eq!(bus.mem[0xFF34], 0x56);
+                assert_eq!(bus.read(0xFF34), 0x56);
             }
         }
 
@@ -428,12 +432,12 @@ mod tests {
 
             cpu.pc = 0x1234;
             bus.write_word(cpu.pc, 0x5678);
-            bus.mem[0x5678] = 0x9A;
+            bus.write(0x5678, 0x9A);
             let cycles = cpu.execute_instruction(&mut bus, 0xFA); // LD A [N16]
 
             assert_eq!(cycles, 16);
             assert_eq!(cpu.registers.a, 0x9A);
-            assert_eq!(bus.mem[0x5678], 0x9A);
+            assert_eq!(bus.read(0x5678), 0x9A);
             assert_eq!(cpu.pc, 0x1236);
         }
 
@@ -448,7 +452,7 @@ mod tests {
             let cycles = cpu.execute_instruction(&mut bus, 0xEA); // LD [N16] A
 
             assert_eq!(cycles, 16);
-            assert_eq!(bus.mem[0x5678], 0x9A);
+            assert_eq!(bus.read(0x5678), 0x9A);
             assert_eq!(cpu.registers.a, 0x9A);
             assert_eq!(cpu.pc, 0x1236);
         }
@@ -469,8 +473,8 @@ mod tests {
 
             assert_eq!(cycles, 12);
             assert_eq!(cpu.registers.bc_get(), 0x5678);
-            assert_eq!(bus.mem[0x1234], 0x78);
-            assert_eq!(bus.mem[0x1235], 0x56);
+            assert_eq!(bus.read(0x1234), 0x78);
+            assert_eq!(bus.read(0x1235), 0x56);
             assert_eq!(cpu.pc, 0x1236);
         }
 
@@ -486,8 +490,8 @@ mod tests {
 
             assert_eq!(cycles, 12);
             assert_eq!(cpu.registers.hl_get(), 0x5678);
-            assert_eq!(bus.mem[0x1234], 0x78);
-            assert_eq!(bus.mem[0x1235], 0x56);
+            assert_eq!(bus.read(0x1234), 0x78);
+            assert_eq!(bus.read(0x1235), 0x56);
             assert_eq!(cpu.pc, 0x1236);
         }
 
@@ -503,8 +507,8 @@ mod tests {
 
             assert_eq!(cycles, 12);
             assert_eq!(cpu.sp, 0x5678);
-            assert_eq!(bus.mem[0x1234], 0x78);
-            assert_eq!(bus.mem[0x1235], 0x56);
+            assert_eq!(bus.read(0x1234), 0x78);
+            assert_eq!(bus.read(0x1235), 0x56);
             assert_eq!(cpu.pc, 0x1236);
         }
 
@@ -631,7 +635,7 @@ mod tests {
             cpu.registers.a = 0b0011_1100;
             cpu.registers.h = 0x12;
             cpu.registers.l = 0x34;
-            bus.mem[0x1234] = 0b0000_1111;
+            bus.write(0x1234, 0b0000_1111);
             let cycles = cpu.execute_instruction(&mut bus, 0xB6); // OR [HL]
 
             assert_eq!(cycles, 8);
@@ -661,7 +665,7 @@ mod tests {
 
             cpu.registers.a = 0xFF;
             cpu.pc = 0x1234;
-            bus.mem[0x1234] = 0x01;
+            bus.write(0x1234, 0x01);
             let cycles = cpu.execute_instruction(&mut bus, 0xC6); // ADD N8
 
             assert_eq!(cycles, 8);
@@ -676,7 +680,7 @@ mod tests {
 
             cpu.registers.a = 0b0011_1100;
             cpu.pc = 0x1234;
-            bus.mem[0x1234] = 0b0000_1111;
+            bus.write(0x1234, 0b0000_1111);
             let cycles = cpu.execute_instruction(&mut bus, 0xEE); // XOR N8
 
             assert_eq!(cycles, 8);
@@ -919,8 +923,8 @@ mod tests {
             let cycles = cpu.execute_instruction(&mut bus, 0xD5); // PUSH DE
 
             assert_eq!(cycles, 16);
-            assert_eq!(bus.mem[0xFFFC], 0x34); // lo - E
-            assert_eq!(bus.mem[0xFFFD], 0x12); // hi - D
+            assert_eq!(bus.read(0xFFFC), 0x34); // lo - E
+            assert_eq!(bus.read(0xFFFD), 0x12); // hi - D
             assert_eq!(cpu.sp, 0xFFFC);
         }
 
@@ -939,8 +943,8 @@ mod tests {
             let cycles = cpu.execute_instruction(&mut bus, 0xF5); // PUSH AF
 
             assert_eq!(cycles, 16);
-            assert_eq!(bus.mem[0xFFF4], 0b1010_0000); // lo - F
-            assert_eq!(bus.mem[0xFFF5], 0x56); // hi - A
+            assert_eq!(bus.read(0xFFF4), 0b1010_0000); // lo - F
+            assert_eq!(bus.read(0xFFF5), 0x56); // hi - A
             assert_eq!(cpu.sp, 0xFFF4);
         }
 
@@ -950,8 +954,8 @@ mod tests {
             let mut bus = Bus::new();
 
             cpu.sp = 0xFFFC;
-            bus.mem[0xFFFC] = 0x34; // lo - C
-            bus.mem[0xFFFD] = 0x12; // hi - B
+            bus.write(0xFFFC, 0x34); // lo - C
+            bus.write(0xFFFD, 0x12); // hi - B
 
             let cycles = cpu.execute_instruction(&mut bus, 0xC1); // POP BC
 
@@ -966,8 +970,8 @@ mod tests {
             let mut bus = Bus::new();
 
             cpu.sp = 0xFFF2;
-            bus.mem[0xFFF2] = 0x34; // lo - L
-            bus.mem[0xFFF3] = 0x12; // hi - H
+            bus.write(0xFFF2, 0x34); // lo - L
+            bus.write(0xFFF3, 0x12); // hi - H
 
             let cycles = cpu.execute_instruction(&mut bus, 0xE1); // POP HL
 
@@ -989,7 +993,7 @@ mod tests {
                 let mut bus = Bus::new();
 
                 cpu.pc = 0x1234;
-                bus.mem[0x1234] = (-2_i8).cast_unsigned();
+                bus.write(0x1234, (-2_i8).cast_unsigned());
 
                 let cycles = cpu.execute_instruction(&mut bus, 0x18); // JR e8
 
@@ -1003,7 +1007,7 @@ mod tests {
                 let mut bus = Bus::new();
 
                 cpu.pc = 0x1234;
-                bus.mem[0x1234] = (-0x11_i8).cast_unsigned();
+                bus.write(0x1234, (-0x11_i8).cast_unsigned());
 
                 cpu.registers.flags.z = true;
                 let cycles = cpu.execute_instruction(&mut bus, 0x28); // JR Z e8
@@ -1012,7 +1016,7 @@ mod tests {
                 assert_eq!(cycles, 12);
                 assert_eq!(cpu.pc, 0x1224); // +1 from e8 fetch -11 from jr
 
-                bus.mem[0x1224] = 0x20;
+                bus.write(0x1224, 0x20);
 
                 cpu.registers.flags.z = false;
                 let cycles = cpu.execute_instruction(&mut bus, 0x28); // JR Z e8
@@ -1028,7 +1032,7 @@ mod tests {
                 let mut bus = Bus::new();
 
                 cpu.pc = 0x1234;
-                bus.mem[0x1234] = (-0x11_i8).cast_unsigned();
+                bus.write(0x1234, (-0x11_i8).cast_unsigned());
 
                 cpu.registers.flags.c = true;
                 let cycles = cpu.execute_instruction(&mut bus, 0x30); // JR NC e8
@@ -1037,7 +1041,7 @@ mod tests {
                 assert_eq!(cycles, 8);
                 assert_eq!(cpu.pc, 0x1235); // +1 from e8
 
-                bus.mem[0x1235] = 0x20;
+                bus.write(0x1235, 0x20);
 
                 cpu.registers.flags.c = false;
                 let cycles = cpu.execute_instruction(&mut bus, 0x30); // JR NC e8
@@ -1446,10 +1450,16 @@ mod tests {
         }
 
         #[test]
-        #[ignore = "requires interrupt handling -- not yet implemented"]
         fn HALT() {
-            // HALT 0x76
-            todo!()
+            let mut cpu = CPU::new();
+            let mut bus = Bus::new();
+
+            cpu.ime.enable_now();
+
+            let cycles = cpu.execute_instruction(&mut bus, 0x76); // HALT
+
+            assert_eq!(cycles, 4);
+            assert!(matches!(cpu.state, CPUState::Halted));
         }
 
         #[test]
@@ -1460,7 +1470,7 @@ mod tests {
             let cycles = cpu.execute_instruction(&mut bus, 0xFB); // EI
 
             assert_eq!(cycles, 4);
-            assert!(matches!(cpu.ime, IME::PendingEnable));
+            assert!(matches!(cpu.ime, IME::PendingEnable(1)));
         }
 
         #[test]
@@ -1528,7 +1538,7 @@ mod tests {
 
                 cpu.registers.h = 0x23;
                 cpu.registers.l = 0x45;
-                bus.mem[0x2345] = 0b0000_0100;
+                bus.write(0x2345, 0b0000_0100);
                 cpu.registers.flags.z = true;
 
                 let cycles = cpu.execute_instruction(&mut bus, 0xCB); // PREFIX
@@ -1655,12 +1665,12 @@ mod tests {
 
                 cpu.registers.h = 0x12;
                 cpu.registers.l = 0x34;
-                bus.mem[0x1234] = 0b1001_0110;
+                bus.write(0x1234, 0b1001_0110);
 
                 let cycles = cpu.execute_extended_instruction(&mut bus, 0x2E); // SRA [HL]
 
                 assert_eq!(cycles, 16);
-                assert_eq!(bus.mem[0x1234], 0b1100_1011); // bit 7 should remain unchanged
+                assert_eq!(bus.read(0x1234), 0b1100_1011); // bit 7 should remain unchanged
             }
 
             #[test]

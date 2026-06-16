@@ -44,7 +44,7 @@ impl From<Interrupt> for InterruptJumpVector {
 pub enum IME {
     /// IME flag is reset, and will be set after the next
     /// instruction is executed.
-    PendingEnable,
+    PendingEnable(u8), // we had to use a counter as the cpu `step` function calls the `commit_pending` function twice when the IME needs to be enabled
 
     /// IME flag is set.
     Enabled,
@@ -57,7 +57,7 @@ impl IME {
     /// Enable the IME flag after the next instruction is executed. Default
     /// behavior of the EI instruction.
     pub const fn enable(&mut self) {
-        *self = Self::PendingEnable;
+        *self = Self::PendingEnable(1);
     }
 
     /// Disable the IME flag immediately.
@@ -73,12 +73,25 @@ impl IME {
 
     /// Transition from `PendingEnable` to `Enabled`. No-op in other states.
     ///
-    /// Call once per CPU step, after interrupt dispatch, to honour the one-cycle
-    /// delay introduced by the EI instruction.
+    /// Call once per CPU step, after instruction execution, to honour the one
+    /// cycle delay introduced by the EI instruction.
+    // TODO: i really dislike this name
     pub const fn commit_pending(&mut self) {
-        if matches!(self, Self::PendingEnable) {
+        if matches!(self, Self::PendingEnable(0)) {
             *self = Self::Enabled;
+        } else if let Self::PendingEnable(n) = self {
+            *self = Self::PendingEnable(*n - 1);
         }
+    }
+
+    /// Checks if the IME is in `Enabled` state.
+    pub const fn is_enabled(&self) -> bool {
+        matches!(self, Self::Enabled)
+    }
+
+    /// Checks if the IME is either in `Disabled` or `PendingEnable` state.
+    pub const fn is_disabled(&self) -> bool {
+        !self.is_enabled()
     }
 }
 
@@ -93,7 +106,9 @@ mod tests {
         fn ime_enable() {
             let mut ime = IME::Disabled;
             ime.enable();
-            assert_eq!(ime, IME::PendingEnable);
+            assert_eq!(ime, IME::PendingEnable(1));
+            ime.commit_pending();
+            assert_eq!(ime, IME::PendingEnable(0));
             ime.commit_pending();
             assert_eq!(ime, IME::Enabled);
         }

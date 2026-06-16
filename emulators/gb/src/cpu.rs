@@ -7,13 +7,11 @@ mod state;
 
 use emu::MemoryBus;
 
-use crate::interrupts::InterruptLine;
+use crate::interrupts::{Interrupt, InterruptBus};
 use interrupts::{IME, INTERRUPT_DISPATCH_CYCLES, InterruptJumpVector};
 use registers::Registers;
 use stack::StackController;
-use state::CPUState;
-
-use instructions::parameter::CallParam;
+use state::{CPUState, HALTED_CYCLES};
 
 #[allow(clippy::upper_case_acronyms)] // we're suppressing this lint to keep the naming consistent with the pan docs
 #[derive(Debug, PartialEq, Eq)]
@@ -56,50 +54,124 @@ impl CPU {
     /// Execute one instruction cycle, including checking for and dispatching any pending interrupts.
     ///
     /// Returns the number of cycles taken to execute the instruction or handle any interrupts.
-    pub(crate) fn step<M: MemoryBus + InterruptLine>(&mut self, mem_bus: &mut M) -> u32 {
-        if let Some(interrupt_cycles) = self.try_dispatch_pending_interrupt(mem_bus) {
-            return interrupt_cycles;
+    pub(crate) fn step<B: MemoryBus + InterruptBus>(&mut self, bus: &mut B) -> u32 {
+        // Halt handling needs to be done before checking for interrupts
+        // since pending interrupts need to be serviced when waking up from halt.
+        if let Some(cycles) = self.handle_halt(bus) {
+            return cycles;
         }
 
+        if let Some(cycles) = self.try_dispatch_pending_interrupt(bus) {
+            return cycles;
+        }
+
+        let opcode = self.fetch_next_opcode(bus);
+
+        let cycles = self.execute_instruction(bus, opcode);
+
+        // Commit any pending IME state changes after executing the instruction
+        // Note that the EI instructions sets the delay to 2 calls to
+        // `commit_pending` as we're taking into account the current call to
+        // `step` and the next one.
         self.ime.commit_pending();
 
-        let opcode = self.fetch_byte(mem_bus);
-        self.execute_instruction(mem_bus, opcode)
+        cycles
     }
 
-    /// Dispatch the highest-priority pending interrupt when IME is enabled.
+    /// Try to dispatch the highest-priority pending interrupt. Returns `None`
+    /// if no interrupt was dispatched or `Some(cycles)` if an interrupt was
+    /// dispatched.
     ///
-    /// Returns the number of cycles taken to handle the interrupt, or `None` if no interrupt was dispatched.
-    ///
-    /// This method will disable IME and acknowledge the interrupt on the bus if an interrupt is dispatched.
-    fn try_dispatch_pending_interrupt<M: MemoryBus + InterruptLine>(
+    /// This method dispatches only if the IME flag is enabled and if an
+    /// interrupt is pending.
+    /// This method will disable IME and acknowledge the interrupt on the bus
+    /// if an interrupt is dispatched.
+    fn try_dispatch_pending_interrupt<B: MemoryBus + InterruptBus>(
         &mut self,
-        mem_bus: &mut M,
+        bus: &mut B,
     ) -> Option<u32> {
         if self.ime != IME::Enabled {
             // IME is not enabled, nothing to do
             return None;
         }
 
-        let Some(pending) = mem_bus.pending_interrupt() else {
+        let Some(interrupt) = bus.highest_pending_interrupt() else {
             // No pending interrupts, nothing to do
             return None;
         };
 
-        self.ime.disable();
-        mem_bus.acknowledge_interrupt(pending);
-
-        self.instr_call(
-            mem_bus,
-            CallParam::VEC(InterruptJumpVector::from(pending).addr()),
-        );
+        self.dispatch_interrupt(bus, interrupt);
 
         Some(INTERRUPT_DISPATCH_CYCLES)
+    }
+
+    /// Dispatch the given interrupt.
+    ///
+    /// This method will disable IME and acknowledge the interrupt on the bus
+    /// and move the program counter to the corresponding interrupt vector.
+    fn dispatch_interrupt<B: MemoryBus + InterruptBus>(
+        &mut self,
+        bus: &mut B,
+        interrupt: Interrupt,
+    ) {
+        self.ime.disable();
+
+        bus.acknowledge_interrupt(interrupt);
+
+        let dst = InterruptJumpVector::from(interrupt).addr();
+        let pc = if self.state.is_halt_bug() {
+            self.state.wake();
+            self.pc.wrapping_sub(1)
+        } else {
+            self.pc
+        };
+
+        self.stack().push_word(bus, pc);
+
+        self.pc = dst;
+    }
+
+    /// Handle the halted state of the CPU.
+    ///
+    /// Wakes if any interrupt is requested, otherwise consumes 4 cycles in the halted state.
+    ///
+    /// Returns `None` if the CPU is not halted and should continue with normal
+    /// instruction dispatch (this includes when the CPU wakes up). Returns
+    /// `Some(cycles)` if the CPU is halted and should consume the given number
+    /// of cycles without dispatching an instruction.
+    fn handle_halt<I: InterruptBus>(&mut self, bus: &I) -> Option<u32> {
+        if !self.state.is_halted() {
+            return None;
+        }
+
+        // Check if an interrupt has been requested to exit the halt state
+        if bus.requested_interrupts().is_empty() {
+            Some(HALTED_CYCLES)
+        } else {
+            self.state.wake();
+            None // wake up; fall through to normal dispatch
+        }
     }
 
     /// Get a stack controller for the CPU's stack pointer.
     const fn stack(&mut self) -> StackController<'_> {
         StackController::new(&mut self.sp)
+    }
+
+    /// Fetch the next opcode to execute.
+    ///
+    /// In the normal case, this will read the byte at the current `pc` and
+    /// increment `pc` by 1.
+    /// However, if the CPU is in the `HaltBug` state, this will read the byte
+    /// at the current `pc` without incrementing `pc`, and then transition the
+    /// CPU back into the `Running` state.
+    fn fetch_next_opcode<B: MemoryBus>(&mut self, bus: &B) -> u8 {
+        if self.state.is_halt_bug() {
+            self.state.wake();
+            bus.read(self.pc)
+        } else {
+            self.fetch_byte(bus)
+        }
     }
 
     /// Read the current byte at `pc` and increment `pc` to the next byte.
@@ -162,30 +234,29 @@ const HIGH_MEM_OFFSET: u16 = 0xFF00;
 mod tests {
     use super::*;
 
-    use crate::interrupts::Interrupt;
+    use crate::interrupts::{Interrupt, InterruptFlags};
     use emu::mem::test_utilities::MockMemoryBus as MockBus;
 
-    /// MockBus implementing InterruptLine trait
-    ///
-    /// It holds only 1 pending interrupt
-    struct MockInterruptBus {
-        mem: MockBus,
-        pending: Option<Interrupt>,
-        acknowledged: Option<Interrupt>,
+    /// `MockBus` implementing `InterruptLine` trait
+    pub struct MockInterruptBus {
+        pub mem: MockBus,
+        pub enabled: InterruptFlags,
+        pub requested: InterruptFlags,
     }
 
     impl MockInterruptBus {
-        fn new() -> Self {
+        pub fn new() -> Self {
             Self {
                 mem: MockBus::new(),
-                pending: None,
-                acknowledged: None,
+                enabled: InterruptFlags::empty(),
+                requested: InterruptFlags::empty(),
             }
         }
 
-        fn with_pending(interrupt: Interrupt) -> Self {
+        pub fn with_pending(interrupt: Interrupt) -> Self {
             Self {
-                pending: Some(interrupt),
+                enabled: InterruptFlags::from(interrupt),
+                requested: InterruptFlags::from(interrupt),
                 ..Self::new()
             }
         }
@@ -197,18 +268,21 @@ mod tests {
         }
 
         fn write(&mut self, address: u16, value: u8) {
-            self.mem.write(address, value)
+            self.mem.write(address, value);
         }
     }
 
-    impl InterruptLine for MockInterruptBus {
-        fn pending_interrupt(&self) -> Option<Interrupt> {
-            self.pending
+    impl InterruptBus for MockInterruptBus {
+        fn requested_interrupts(&self) -> InterruptFlags {
+            self.requested
+        }
+
+        fn enabled_interrupts(&self) -> InterruptFlags {
+            self.enabled
         }
 
         fn acknowledge_interrupt(&mut self, interrupt: Interrupt) {
-            self.acknowledged = Some(interrupt);
-            self.pending = None;
+            self.requested &= !InterruptFlags::from(interrupt);
         }
     }
 
@@ -231,7 +305,7 @@ mod tests {
 
                 cpu.step(&mut bus); // should set IME to PendingEnable
 
-                assert_eq!(cpu.ime, IME::PendingEnable);
+                assert_eq!(cpu.ime, IME::PendingEnable(0));
                 assert_eq!(cpu.pc, 0x0101);
 
                 cpu.step(&mut bus); // noop (bus is zeroed out), but should transition IME to Enabled
@@ -263,14 +337,14 @@ mod tests {
                 assert_eq!(cpu.pc, 0x0100);
                 assert_eq!(cpu.sp, 0xFFFE);
                 assert_eq!(cpu.ime, IME::Disabled);
-                assert_eq!(bus.acknowledged, None);
+                assert_eq!(bus.highest_pending_interrupt(), Some(Interrupt::VBlank));
             }
 
             #[test]
             fn noop_when_ime_pending_enable() {
                 let mut cpu = CPU::new();
                 let mut bus = MockInterruptBus::with_pending(Interrupt::VBlank);
-                cpu.ime = IME::PendingEnable;
+                cpu.ime = IME::PendingEnable(0);
                 cpu.pc = 0x0100;
                 cpu.sp = 0xFFFE;
 
@@ -279,8 +353,8 @@ mod tests {
                 assert_eq!(cycles, None);
                 assert_eq!(cpu.pc, 0x0100);
                 assert_eq!(cpu.sp, 0xFFFE);
-                assert_eq!(cpu.ime, IME::PendingEnable);
-                assert_eq!(bus.acknowledged, None);
+                assert_eq!(cpu.ime, IME::PendingEnable(0));
+                assert_eq!(bus.highest_pending_interrupt(), Some(Interrupt::VBlank));
             }
 
             #[test]
@@ -297,6 +371,7 @@ mod tests {
                 assert_eq!(cpu.pc, 0x0100);
                 assert_eq!(cpu.sp, 0xFFFE);
                 assert_eq!(cpu.ime, IME::Enabled);
+                assert_eq!(bus.highest_pending_interrupt(), None);
             }
 
             #[test]
@@ -332,7 +407,7 @@ mod tests {
 
                 cpu.try_dispatch_pending_interrupt(&mut bus);
 
-                assert_eq!(bus.acknowledged, Some(Interrupt::Serial));
+                assert_eq!(bus.requested_interrupts(), InterruptFlags::empty());
             }
 
             #[test]
@@ -375,47 +450,397 @@ mod tests {
                 }
             }
         }
+
+        // TODO: missing dispatching using the `step` function
     }
 
-    #[test]
-    fn fetch_byte() {
-        let mut cpu = CPU::new();
-        let mut bus = MockBus::new();
+    mod halt {
+        use super::*;
 
-        cpu.pc = 0xFFFF;
-        bus.mem[0xFFFF] = 0xEF;
-        bus.mem[0x0000] = 0x12;
-        bus.mem[0x0001] = 0x34;
-        bus.mem[0x0002] = 0x56;
+        mod handle_halt {
+            use super::*;
 
-        assert_eq!(cpu.fetch_byte(&bus), 0xEF);
-        assert_eq!(cpu.pc, 0x0000);
-        assert_eq!(cpu.fetch_byte(&bus), 0x12);
-        assert_eq!(cpu.pc, 0x0001);
-        assert_eq!(cpu.fetch_byte(&bus), 0x34);
-        assert_eq!(cpu.pc, 0x0002);
-        assert_eq!(cpu.fetch_byte(&bus), 0x56);
-        assert_eq!(cpu.pc, 0x0003);
+            #[test]
+            fn noop_when_running() {
+                let mut cpu = CPU::new();
+                let bus = MockInterruptBus::new();
+
+                cpu.state = CPUState::Running;
+
+                let cycles = cpu.handle_halt(&bus);
+
+                assert_eq!(cycles, None);
+                assert_eq!(cpu.state, CPUState::Running);
+            }
+
+            #[test]
+            fn noop_when_halt_bug() {
+                let mut cpu = CPU::new();
+                let bus = MockInterruptBus::new();
+
+                cpu.state = CPUState::HaltBug;
+
+                let cycles = cpu.handle_halt(&bus);
+
+                assert_eq!(cycles, None);
+                assert_eq!(cpu.state, CPUState::HaltBug);
+            }
+
+            #[test]
+            fn wake_on_pending_interrupt() {
+                let mut cpu = CPU::new();
+                let bus = MockInterruptBus::with_pending(Interrupt::VBlank);
+
+                cpu.state = CPUState::Halted;
+
+                let cycles = cpu.handle_halt(&bus);
+
+                assert_eq!(cycles, None);
+                assert_eq!(cpu.state, CPUState::Running); // CPU is now awake
+            }
+
+            #[test]
+            fn consume_cycles_when_no_pending_interrupt() {
+                let mut cpu = CPU::new();
+                let bus = MockInterruptBus::new();
+
+                cpu.state = CPUState::Halted;
+
+                let cycles = cpu.handle_halt(&bus);
+
+                assert_eq!(cycles, Some(HALTED_CYCLES));
+                assert_eq!(cpu.state, CPUState::Halted);
+            }
+        }
+
+        mod step {
+            use super::*;
+
+            #[test]
+            fn consume_cycles_when_no_pending_interrupt() {
+                let mut cpu = CPU::new();
+                let mut bus = MockInterruptBus::new();
+
+                cpu.ime = IME::Enabled;
+                cpu.state = CPUState::Halted;
+
+                let cycles = cpu.step(&mut bus);
+
+                assert_eq!(cycles, HALTED_CYCLES); // CPU is still halted
+                assert_eq!(cpu.state, CPUState::Halted);
+                assert_eq!(cpu.pc, 0x0000); // PC should not have changed
+            }
+
+            #[test]
+            fn wake_on_pending_interrupt() {
+                let mut cpu = CPU::new();
+                let mut bus = MockInterruptBus::with_pending(Interrupt::VBlank);
+
+                cpu.ime = IME::Enabled;
+                cpu.state = CPUState::Halted;
+
+                let cycles = cpu.step(&mut bus);
+
+                assert_eq!(cycles, INTERRUPT_DISPATCH_CYCLES); // interrupt was dispatched
+                assert_eq!(cpu.state, CPUState::Running); // CPU is now awake
+                assert_eq!(cpu.pc, 0x0040); // VBlank interrupt vector
+            }
+
+            #[test]
+            fn wake_on_ime_disabled_pending_interrupt() {
+                let mut cpu = CPU::new();
+                let mut bus = MockInterruptBus::with_pending(Interrupt::VBlank);
+
+                cpu.pc = 0x0100;
+
+                cpu.state = CPUState::Halted;
+                cpu.ime = IME::Disabled;
+
+                let cycles = cpu.step(&mut bus);
+
+                // executes the noop instruction under PC 0x0100 since everything is zeroed out
+
+                assert_eq!(cycles, 4); // instr noop cycles
+                assert_eq!(cpu.state, CPUState::Running); // CPU is now awake
+                assert_eq!(cpu.pc, 0x0101); // PC is incremented to the next instruction after executing the noop
+            }
+        }
+
+        mod halt_bug {
+            use super::*;
+
+            #[test]
+            fn halt_bug() {
+                let mut cpu = CPU::new();
+                let mut bus = MockInterruptBus::with_pending(Interrupt::VBlank);
+
+                cpu.pc = 0x0100;
+                cpu.state = CPUState::HaltBug;
+                cpu.ime = IME::Disabled;
+
+                let cycles = cpu.step(&mut bus);
+
+                assert_eq!(cycles, 4); // instr noop cycles
+                assert_eq!(cpu.state, CPUState::Running); // CPU is now awake
+                assert_eq!(cpu.pc, 0x0100); // PC isn't incremented due to halt bug behavior
+            }
+
+            #[test]
+            fn halt_bug_inc_twice() {
+                let mut cpu = CPU::new();
+                let mut bus = MockInterruptBus::with_pending(Interrupt::VBlank);
+
+                cpu.pc = 0x0100;
+                cpu.state = CPUState::Running;
+                cpu.ime = IME::Disabled;
+
+                bus.write(0x0100, 0x76); // HALT opcode
+                bus.write(0x0101, 0x04); // INC B opcode
+
+                cpu.step(&mut bus); // HALT instruction
+
+                assert_eq!(cpu.state, CPUState::HaltBug); // CPU is now in halt bug state
+                assert_eq!(cpu.pc, 0x0101); // PC is at the following instruction
+
+                cpu.step(&mut bus); // INC B instruction
+
+                assert_eq!(cpu.registers.b, 0x01); // B register should have been incremented
+                assert_eq!(cpu.state, CPUState::Running); // CPU is now awake
+                assert_eq!(cpu.pc, 0x0101); // PC remains the same due to halt bug behavior
+
+                cpu.step(&mut bus); // INC B instruction again
+
+                assert_eq!(cpu.registers.b, 0x02); // B register should have been incremented again
+                assert_eq!(cpu.pc, 0x0102); // PC moves to the next instruction after INC B, as halt bug behavior should be resolved after the first instruction following HALT is executed
+            }
+
+            #[test]
+            fn halt_bug_changes_param_values() {
+                let mut cpu = CPU::new();
+                let mut bus = MockInterruptBus::with_pending(Interrupt::VBlank);
+
+                cpu.pc = 0x0100;
+                cpu.state = CPUState::Running;
+                cpu.ime = IME::Disabled;
+
+                bus.write(0x0100, 0x76); // HALT opcode
+                bus.write(0x0101, 0x06); // LD B, n opcode
+                bus.write(0x0102, 0x04); // value 0x04 to be loaded into B register
+
+                cpu.step(&mut bus); // HALT instruction
+
+                assert_eq!(cpu.state, CPUState::HaltBug); // CPU is now in halt bug state
+                assert_eq!(cpu.pc, 0x0101); // PC is at the following instruction
+
+                cpu.step(&mut bus); // LD B, n instruction
+
+                assert_eq!(cpu.registers.b, 0x06); // B register should have been loaded with the value of the next instruction (0x06) instead of the intended value (0x04) due to halt bug behavior where PC is not incremented after the first instruction following HALT
+                assert_eq!(cpu.state, CPUState::Running); // CPU is now awake
+                assert_eq!(cpu.pc, 0x0102); // PC increments only once from fetching the parameter of the instruction
+
+                cpu.step(&mut bus); // Parameter 0x04 is now executed as an instruction instead of being loaded into B register
+
+                assert_eq!(cpu.registers.b, 0x07); // B is instead incremented by the INC B instruction (opcode 0x04)
+                assert_eq!(cpu.pc, 0x0103); // PC increments normaly to the next instruction
+            }
+
+            #[test]
+            fn halt_bug_pushes_incorect_return_address() {
+                let mut cpu = CPU::new();
+                let mut bus = MockInterruptBus::with_pending(Interrupt::VBlank);
+
+                cpu.pc = 0x0100;
+                cpu.state = CPUState::Running;
+                cpu.ime = IME::Disabled;
+
+                bus.write(0x0100, 0x76); // HALT opcode
+                bus.write(0x0101, 0xCF); // RST $08 opcode (call to address 0x08)
+
+                cpu.step(&mut bus); // HALT instruction
+
+                assert_eq!(cpu.state, CPUState::HaltBug); // CPU is now in halt bug state
+                assert_eq!(cpu.pc, 0x0101); // PC is at the following instruction
+
+                cpu.step(&mut bus); // RST $08 instruction
+
+                assert_eq!(cpu.pc, 0x08); // PC should have jumped to the called address
+                assert_eq!(cpu.stack().peek_word(&bus), 0x0101); // The return address pushed onto the stack should be the address of the RST $08 instruction (0x0101) instead of the next instruction after 0x0102.
+            }
+
+            #[test]
+            fn ei_into_halt_bug() {
+                let mut cpu = CPU::new();
+                let mut bus = MockInterruptBus::with_pending(Interrupt::VBlank);
+
+                cpu.pc = 0x0100;
+                cpu.state = CPUState::Running;
+                cpu.ime = IME::Disabled;
+
+                bus.write(0x0100, 0xFB); // EI opcode
+                bus.write(0x0101, 0x76); // HALT opcode -- halt is called before IME is fully enabled with an interrupt pending -> halt bug occurs
+                bus.write(0x0040, 0x00); // VBlank interrupt vector -- noop to execute after the interrupt is dispatched
+                bus.write(0x0041, 0xD9); // RETI opcode -- return from interrupt
+
+                let cycles = cpu.step(&mut bus); // EI instruction
+
+                assert_eq!(cycles, 4); // EI instruction cycles
+                assert_eq!(cpu.ime, IME::PendingEnable(0));
+                assert_eq!(cpu.pc, 0x0101); // PC is now at the HALT instruction
+
+                let cycles = cpu.step(&mut bus); // HALT instruction
+
+                assert_eq!(cycles, 4); // HALT instruction cycles
+                assert_eq!(cpu.ime, IME::Enabled); // IME is now enabled
+                assert_eq!(cpu.state, CPUState::HaltBug); // CPU is now in halt bug state
+                assert_eq!(cpu.pc, 0x0102); // PC is after the HALT instruction
+
+                let cycles = cpu.step(&mut bus); // Dispatch the pending VBlank interrupt
+
+                assert_eq!(cycles, INTERRUPT_DISPATCH_CYCLES); // interrupt was dispatched
+                assert_eq!(cpu.ime, IME::Disabled); // IME is now disabled
+                assert_eq!(cpu.state, CPUState::Running); // CPU is still in halt bug state
+                assert_eq!(cpu.pc, 0x0040); // PC is now at the VBlank interrupt vector
+                assert_eq!(cpu.stack().peek_word(&bus), 0x0101); // The return address pushed onto the stack should be the address of the HALT instruction (0x0101) instead of the next instruction due to halt bug behavior
+
+                let cycles = cpu.step(&mut bus); // Execute the noop at the VBlank interrupt vector
+
+                assert_eq!(cycles, 4); // noop instruction cycles
+                assert_eq!(cpu.pc, 0x0041); // PC is now at the next instruction after the VBlank interrupt vector
+
+                let cycles = cpu.step(&mut bus); // Execute the RETI instruction
+
+                assert_eq!(cycles, 16); // RETI instruction cycles
+                assert_eq!(cpu.ime, IME::Enabled); // IME is now enabled through RETI instruction
+                assert_eq!(cpu.pc, 0x0101); // PC is now back at the HALT instruction after returning from the interrupt due to earlier halt bug
+
+                let cycles = cpu.step(&mut bus); // Execute the HALT instruction again
+
+                assert_eq!(cycles, 4); // HALT instruction cycles
+                assert_eq!(cpu.state, CPUState::Halted); // CPU is now properly halted
+            }
+
+            /// Chaining 2 halts with a pending interrupt and IME disabled
+            /// should result in a dead lock where the second halt instruction
+            /// is called repeatedly.
+            #[test]
+            fn double_halt_bug_deadlock() {
+                let mut cpu = CPU::new();
+                let mut bus = MockInterruptBus::with_pending(Interrupt::VBlank);
+
+                cpu.pc = 0x0100;
+                cpu.state = CPUState::Running;
+                cpu.ime = IME::Disabled;
+
+                bus.write(0x0100, 0x76); // HALT opcode
+                bus.write(0x0101, 0x76); // HALT opcode
+
+                cpu.step(&mut bus); // 1st HALT instruction
+
+                assert_eq!(cpu.state, CPUState::HaltBug); // CPU is now awake due to halt bug behavior
+                assert_eq!(cpu.pc, 0x0101); // PC is still at the HALT instruction due to halt bug behavior
+
+                cpu.step(&mut bus); // Execute the HALT instruction again
+
+                assert_eq!(cpu.state, CPUState::HaltBug); // CPU is now properly halted
+                assert_eq!(cpu.pc, 0x0101); // PC is now at the next instruction after the first HALT
+
+                cpu.step(&mut bus); // Execute the HALT instruction again
+
+                assert_eq!(cpu.state, CPUState::HaltBug); // CPU is now properly halted
+                assert_eq!(cpu.pc, 0x0101); // PC is now at the next instruction after the first HALT
+
+                cpu.step(&mut bus); // Execute the HALT instruction again
+
+                assert_eq!(cpu.state, CPUState::HaltBug); // CPU is now properly halted
+                assert_eq!(cpu.pc, 0x0101); // PC is now at the next instruction after the first HALT
+            }
+        }
     }
 
-    #[test]
-    fn fetch_word() {
-        let mut cpu = CPU::new();
-        let mut bus = MockBus::new();
+    mod fetch {
+        use super::*;
 
-        cpu.pc = 0xFFFE;
-        bus.mem[0xFFFE] = 0xEF; // lo
-        bus.mem[0xFFFF] = 0xCD; // hi
-        bus.mem[0x0000] = 0x34; // lo
-        bus.mem[0x0001] = 0x12; // hi
-        bus.mem[0x0002] = 0x78; // lo
-        bus.mem[0x0003] = 0x56; // hi
+        #[test]
+        fn fetch_next_opcode_halt_bug() {
+            let mut cpu = CPU::new();
+            let mut bus = MockBus::new();
 
-        assert_eq!(cpu.fetch_word(&bus), 0xCDEF);
-        assert_eq!(cpu.pc, 0x0000);
-        assert_eq!(cpu.fetch_word(&bus), 0x1234);
-        assert_eq!(cpu.pc, 0x0002);
-        assert_eq!(cpu.fetch_word(&bus), 0x5678);
-        assert_eq!(cpu.pc, 0x0004);
+            cpu.pc = 0x0000;
+            bus.mem[0x0000] = 0x12;
+            bus.mem[0x0001] = 0x34;
+
+            cpu.state = CPUState::HaltBug;
+
+            let opcode1 = cpu.fetch_next_opcode(&bus);
+            assert_eq!(opcode1, 0x12);
+            assert_eq!(cpu.pc, 0x0000); // PC should not have incremented due to halt bug
+            assert_eq!(cpu.state, CPUState::Running); // CPU should have woken up from halt bug state
+
+            let opcode2 = cpu.fetch_next_opcode(&bus);
+            assert_eq!(opcode2, 0x12); // should fetch the same opcode again due to halt bug
+            assert_eq!(cpu.pc, 0x0001); // PC should still not have incremented
+        }
+
+        #[test]
+        fn fetch_next_opcode_normal() {
+            let mut cpu = CPU::new();
+            let mut bus = MockBus::new();
+
+            cpu.pc = 0x0000;
+            bus.mem[0x0000] = 0x12;
+            bus.mem[0x0001] = 0x34;
+
+            cpu.state = CPUState::Running;
+
+            let opcode1 = cpu.fetch_next_opcode(&bus);
+            assert_eq!(opcode1, 0x12);
+            assert_eq!(cpu.pc, 0x0001); // PC should have incremented
+
+            let opcode2 = cpu.fetch_next_opcode(&bus);
+            assert_eq!(opcode2, 0x34);
+            assert_eq!(cpu.pc, 0x0002); // PC should have incremented again
+        }
+
+        #[test]
+        fn fetch_byte() {
+            let mut cpu = CPU::new();
+            let mut bus = MockBus::new();
+
+            cpu.pc = 0xFFFF;
+            bus.mem[0xFFFF] = 0xEF;
+            bus.mem[0x0000] = 0x12;
+            bus.mem[0x0001] = 0x34;
+            bus.mem[0x0002] = 0x56;
+
+            assert_eq!(cpu.fetch_byte(&bus), 0xEF);
+            assert_eq!(cpu.pc, 0x0000);
+            assert_eq!(cpu.fetch_byte(&bus), 0x12);
+            assert_eq!(cpu.pc, 0x0001);
+            assert_eq!(cpu.fetch_byte(&bus), 0x34);
+            assert_eq!(cpu.pc, 0x0002);
+            assert_eq!(cpu.fetch_byte(&bus), 0x56);
+            assert_eq!(cpu.pc, 0x0003);
+        }
+
+        #[test]
+        fn fetch_word() {
+            let mut cpu = CPU::new();
+            let mut bus = MockBus::new();
+
+            cpu.pc = 0xFFFE;
+            bus.mem[0xFFFE] = 0xEF; // lo
+            bus.mem[0xFFFF] = 0xCD; // hi
+            bus.mem[0x0000] = 0x34; // lo
+            bus.mem[0x0001] = 0x12; // hi
+            bus.mem[0x0002] = 0x78; // lo
+            bus.mem[0x0003] = 0x56; // hi
+
+            assert_eq!(cpu.fetch_word(&bus), 0xCDEF);
+            assert_eq!(cpu.pc, 0x0000);
+            assert_eq!(cpu.fetch_word(&bus), 0x1234);
+            assert_eq!(cpu.pc, 0x0002);
+            assert_eq!(cpu.fetch_word(&bus), 0x5678);
+            assert_eq!(cpu.pc, 0x0004);
+        }
     }
 }

@@ -1,4 +1,4 @@
-use crate::interrupts::{Interrupt, InterruptFlags, InterruptLine};
+use crate::interrupts::{Interrupt, InterruptBus, InterruptFlags};
 use emu::MemoryBus;
 
 /// Interrupt Registers, which include the Interrupt Enable (IE) and Interrupt Flags (IF) registers.
@@ -57,12 +57,15 @@ impl InterruptRegisters {
     }
 }
 
-impl InterruptLine for InterruptRegisters {
-    /// Returns the highest priority pending interrupt, if any. Returns `None`
-    /// if no enabled interrupts are pending.
-    fn pending_interrupt(&self) -> Option<Interrupt> {
-        let pending_interrupts = self.interrupt_enable & self.interrupt_flags;
-        pending_interrupts.highest_priority()
+impl InterruptBus for InterruptRegisters {
+    /// Returns the currently requested interrupts (IF register).
+    fn requested_interrupts(&self) -> InterruptFlags {
+        self.interrupt_flags
+    }
+
+    /// Returns the currently enabled interrupts (IE register).
+    fn enabled_interrupts(&self) -> InterruptFlags {
+        self.interrupt_enable
     }
 
     /// Acknowledge an interrupt and mark it as serviced.
@@ -183,14 +186,14 @@ mod tests {
         interrupt_registers.request_interrupt(Interrupt::Timer);
 
         // No interrupts enabled, so pending_interrupt should return None
-        assert_eq!(interrupt_registers.pending_interrupt(), None);
+        assert_eq!(interrupt_registers.highest_pending_interrupt(), None);
 
         // Enable the Timer interrupt
         interrupt_registers.enable_interrupt(Interrupt::Timer);
 
         // Now pending_interrupt should return the Timer interrupt
         assert_eq!(
-            interrupt_registers.pending_interrupt(),
+            interrupt_registers.highest_pending_interrupt(),
             Some(Interrupt::Timer)
         );
 
@@ -200,7 +203,7 @@ mod tests {
 
         // Now pending_interrupt should return the VBlank interrupt, since it has higher priority
         assert_eq!(
-            interrupt_registers.pending_interrupt(),
+            interrupt_registers.highest_pending_interrupt(),
             Some(Interrupt::VBlank)
         );
 
@@ -209,7 +212,7 @@ mod tests {
 
         // Now pending_interrupt should return the Timer interrupt, since the VBlank interrupt has been acknowledged
         assert_eq!(
-            interrupt_registers.pending_interrupt(),
+            interrupt_registers.highest_pending_interrupt(),
             Some(Interrupt::Timer)
         );
     }

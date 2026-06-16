@@ -1,6 +1,8 @@
 use crate::cpu::CPU;
 use crate::cpu::alu;
 
+use crate::interrupts::InterruptBus;
+
 use super::condition::Condition;
 use super::operand::{Operand8, Operand16};
 
@@ -998,8 +1000,14 @@ impl CPU {
         0
     }
 
-    pub(crate) fn instr_halt(&self) -> u32 {
-        todo!()
+    pub(crate) fn instr_halt<IB: InterruptBus>(&mut self, interrupt_bus: &IB) -> u32 {
+        if self.ime.is_disabled() && !interrupt_bus.requested_interrupts().is_empty() {
+            self.state.halt_bug();
+        } else {
+            self.state.halt();
+        }
+
+        0
     }
 
     pub(crate) fn instr_stop(&self) -> u32 {
@@ -1152,7 +1160,9 @@ mod flag_mask {
 #[allow(non_snake_case)] // helps a lot for regs names
 mod tests {
     use crate::cpu::interrupts::IME;
-    use emu::mem::test_utilities::MockMemoryBus as Bus;
+    use crate::cpu::tests::MockInterruptBus as Bus;
+
+    use crate::cpu::state::CPUState;
 
     use super::*;
 
@@ -1329,8 +1339,8 @@ mod tests {
 
                 assert_eq!(cycles, 0);
                 assert_eq!(cpu.sp, 0xFFFA); // sp should have moved down by 2 again
-                assert_eq!(bus.mem[0xFFFA], 0b1010_0000); // F
-                assert_eq!(bus.mem[0xFFFB], 0x56); // A
+                assert_eq!(bus.read(0xFFFA), 0b1010_0000); // F
+                assert_eq!(bus.read(0xFFFB), 0x56); // A
             }
         }
 
@@ -1343,8 +1353,8 @@ mod tests {
                 let mut bus = Bus::new();
 
                 cpu.sp = 0xFFFE;
-                bus.mem[0xFFFE] = 0x34;
-                bus.mem[0xFFFF] = 0x12;
+                bus.write(0xFFFE, 0x34);
+                bus.write(0xFFFF, 0x12);
 
                 let cycles = cpu.instr_pop(&mut bus, R16StackParam::BC);
 
@@ -1359,8 +1369,8 @@ mod tests {
                 let mut bus = Bus::new();
 
                 cpu.sp = 0x0000;
-                bus.mem[0x0000] = 0b1010_1010; // F
-                bus.mem[0x0001] = 0x56; // A
+                bus.write(0x0000, 0b1010_1010); // F
+                bus.write(0x0001, 0x56); // A
 
                 let cycles = cpu.instr_pop(&mut bus, R16StackParam::AF);
 
@@ -1696,7 +1706,7 @@ mod tests {
             cpu.registers.a = 0b0011_1100;
             cpu.registers.h = 0x12;
             cpu.registers.l = 0x34;
-            bus.mem[0x1234] = 0b0000_1111;
+            bus.write(0x1234, 0b0000_1111);
 
             let cycles = cpu.instr_alu(&bus, ALUOperation::OR, R8Param::IndHL.into());
 
@@ -1736,7 +1746,7 @@ mod tests {
 
             cpu.registers.a = 0xFF;
             cpu.pc = 0x1234;
-            bus.mem[0x1234] = 0x01;
+            bus.write(0x1234, 0x01);
 
             let cycles = cpu.instr_alu(&bus, ALUOperation::ADD, ALU8Param::N8);
 
@@ -2234,12 +2244,12 @@ mod tests {
 
                 cpu.registers.h = 0x12;
                 cpu.registers.l = 0x34;
-                bus.mem[0x1234] = 0b1001_0110;
+                bus.write(0x1234, 0b1001_0110);
                 let cycles =
                     cpu.instr_ext_bit_shift(&mut bus, BitShiftOperation::SRL, R8Param::IndHL);
 
                 assert_eq!(cycles, 0);
-                assert_eq!(bus.mem[0x1234], 0b0100_1011);
+                assert_eq!(bus.read(0x1234), 0b0100_1011);
                 assert!(!cpu.registers.flags.z);
                 assert!(!cpu.registers.flags.n);
                 assert!(!cpu.registers.flags.h);
@@ -2369,13 +2379,13 @@ mod tests {
 
                     cpu.registers.h = 0x12;
                     cpu.registers.l = 0x34;
-                    bus.mem[0x1234] = 0b1001_0110;
+                    bus.write(0x1234, 0b1001_0110);
                     let cycles = cpu.instr_ext_bit(&bus, 6.try_into().unwrap(), R8Param::IndHL);
 
                     assert_eq!(cycles, 0);
                     assert_eq!(cpu.registers.h, 0x12);
                     assert_eq!(cpu.registers.l, 0x34);
-                    assert_eq!(bus.mem[0x1234], 0b1001_0110); // should not modify the value
+                    assert_eq!(bus.read(0x1234), 0b1001_0110); // should not modify the value
 
                     assert!(cpu.registers.flags.z);
                     assert!(!cpu.registers.flags.n);
@@ -2485,11 +2495,11 @@ mod tests {
 
                 cpu.registers.h = 0x12;
                 cpu.registers.l = 0x34;
-                bus.mem[0x1234] = 0b1001_0110;
+                bus.write(0x1234, 0b1001_0110);
                 let cycles = cpu.instr_ext_res(&mut bus, 7.try_into().unwrap(), R8Param::IndHL);
 
                 assert_eq!(cycles, 0);
-                assert_eq!(bus.mem[0x1234], 0b1001_0110 & !(1 << 7));
+                assert_eq!(bus.read(0x1234), 0b1001_0110 & !(1 << 7));
             }
         }
 
@@ -2575,11 +2585,11 @@ mod tests {
 
                 cpu.registers.h = 0x12;
                 cpu.registers.l = 0x34;
-                bus.mem[0x1234] = 0b1001_0110;
+                bus.write(0x1234, 0b1001_0110);
                 let cycles = cpu.instr_ext_set(&mut bus, 7.try_into().unwrap(), R8Param::IndHL);
 
                 assert_eq!(cycles, 0);
-                assert_eq!(bus.mem[0x1234], 0b1001_0110 | (1 << 7));
+                assert_eq!(bus.read(0x1234), 0b1001_0110 | (1 << 7));
             }
         }
     }
@@ -2641,10 +2651,45 @@ mod tests {
             assert!(cpu.registers.flags.c);
         }
 
-        #[test]
-        #[ignore = "requires interrupt handling -- not yet implemented"]
-        fn halt() {
-            todo!()
+        mod halt {
+            use crate::interrupts::Interrupt;
+
+            use super::*;
+
+            #[test]
+            fn ime_enabled_no_interrupt() {
+                let mut cpu = CPU::new();
+                let bus = Bus::new();
+
+                cpu.ime.enable_now();
+
+                let cycles = cpu.instr_halt(&bus);
+
+                assert_eq!(cycles, 0);
+                assert!(matches!(cpu.state, CPUState::Halted));
+            }
+
+            #[test]
+            fn ime_disabled_no_interrupt() {
+                let mut cpu = CPU::new();
+                let bus = Bus::new();
+
+                let cycles = cpu.instr_halt(&bus);
+
+                assert_eq!(cycles, 0);
+                assert!(matches!(cpu.state, CPUState::Halted));
+            }
+
+            #[test]
+            fn ime_disabled_with_interrupt() {
+                let mut cpu = CPU::new();
+                let bus = Bus::with_pending(Interrupt::VBlank);
+
+                let cycles = cpu.instr_halt(&bus);
+
+                assert_eq!(cycles, 0);
+                assert!(matches!(cpu.state, CPUState::HaltBug));
+            }
         }
 
         #[test]
@@ -2660,7 +2705,7 @@ mod tests {
             let cycles = cpu.instr_ei();
 
             assert_eq!(cycles, 0);
-            assert!(matches!(cpu.ime, IME::PendingEnable));
+            assert!(matches!(cpu.ime, IME::PendingEnable(1)));
         }
 
         #[test]

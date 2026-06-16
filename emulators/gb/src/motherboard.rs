@@ -2,7 +2,7 @@ mod interrupts;
 
 use emu::MemoryBus;
 
-use crate::interrupts::{Interrupt, InterruptLine};
+use crate::interrupts::{Interrupt, InterruptBus, InterruptFlags};
 use interrupts::{IE_ADDRESS, IF_ADDRESS, InterruptRegisters};
 
 #[derive(Debug)]
@@ -109,9 +109,13 @@ impl MemoryBus for MotherBoard {
     }
 }
 
-impl InterruptLine for MotherBoard {
-    fn pending_interrupt(&self) -> Option<Interrupt> {
-        self.interrupt_registers.pending_interrupt()
+impl InterruptBus for MotherBoard {
+    fn requested_interrupts(&self) -> InterruptFlags {
+        self.interrupt_registers.requested_interrupts()
+    }
+
+    fn enabled_interrupts(&self) -> InterruptFlags {
+        self.interrupt_registers.enabled_interrupts()
     }
 
     fn acknowledge_interrupt(&mut self, interrupt: Interrupt) {
