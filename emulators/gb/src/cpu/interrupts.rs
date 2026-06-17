@@ -129,7 +129,7 @@ mod tests {
         }
 
         #[test]
-        fn ime_commit_pending_noop() {
+        fn ime_tick_noop() {
             let mut ime = IME::Disabled;
             ime.tick();
             assert_eq!(ime, IME::Disabled);

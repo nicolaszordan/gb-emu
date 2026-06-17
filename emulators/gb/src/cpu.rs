@@ -594,6 +594,38 @@ mod tests {
                 assert_eq!(cpu.state, CPUState::Running); // CPU is now awake
                 assert_eq!(cpu.pc, 0x0101); // PC is incremented to the next instruction after executing the noop
             }
+
+            #[test]
+            fn ei_into_halt() {
+                let mut cpu = CPU::new();
+                let mut bus = MockInterruptBus::new();
+
+                bus.enable_interrupt(Interrupt::Joypad);
+
+                cpu.pc = 0x0100;
+
+                bus.write(0x0100, 0xFB); // EI opcode
+                bus.write(0x0101, 0x76); // HALT opcode
+
+                cpu.step(&mut bus); // enable ime
+
+                assert_eq!(cpu.ime, IME::PendingEnable(0));
+                assert_eq!(cpu.pc, 0x0101);
+
+                cpu.step(&mut bus); // halt instruction
+
+                assert_eq!(cpu.state, CPUState::Halted);
+                assert_eq!(cpu.ime, IME::Enabled); // IME should now be enabled after the EI instruction's delay
+                assert_eq!(cpu.pc, 0x0102);
+
+                bus.request_interrupt(Interrupt::Joypad); // request an interrupt to wake the CPU
+
+                let cycles = cpu.step(&mut bus); // should wake the CPU
+
+                assert_eq!(cycles, INTERRUPT_DISPATCH_CYCLES);
+                assert_eq!(cpu.state, CPUState::Running);
+                assert_eq!(cpu.pc, 0x0060); // Joypad interrupt vector
+            }
         }
 
         mod halt_bug {
