@@ -83,11 +83,12 @@ implemented by `MotherBoard`:
 - **`MemoryBus`** (`emulators/emu/src/mem.rs`): `read`/`write` plus little-endian
   `read_word`/`write_word` and `read_range`. CPU methods are generic over
   `M: MemoryBus`.
-- **`InterruptLine`** (`emulators/gb/src/interrupts.rs`): `pending_interrupt` /
-  `acknowledge_interrupt`. The IE/IF registers live in `motherboard/interrupts.rs`.
+- **`InterruptBus`** (`emulators/gb/src/interrupts.rs`): `requested_interrupts` /
+  `enabled_interrupts` / `acknowledge_interrupt`. The IE/IF registers live in
+  `motherboard/interrupts.rs`.
 
 `MotherBoard` (`motherboard.rs`) implements both, so `&mut MotherBoard` satisfies the
-`M: MemoryBus + InterruptLine` bound that `CPU::step` requires. Use the same generic
+`B: MemoryBus + InterruptBus` bound that `CPU::step` requires. Use the same generic
 bounds (rather than a concrete bus) so code stays testable against `MockMemoryBus`.
 
 ### CPU (`emulators/gb/src/cpu.rs` + `cpu/`)
@@ -160,7 +161,7 @@ The decode/execute pipeline is layered:
 - 16-bit memory access is little-endian; addresses/`pc` use `wrapping_add`; high memory
   / I/O registers are based at `0xFF00`.
 - Tests are colocated in `#[cfg(test)]` modules, often with nested topic submodules.
-- Prefer generic `M: MemoryBus (+ InterruptLine)` bounds over concrete bus types so code
+- Prefer generic `M: MemoryBus (+ InterruptBus)` bounds over concrete bus types so code
   can be tested with mocks.
 
 ## Git / contribution workflow

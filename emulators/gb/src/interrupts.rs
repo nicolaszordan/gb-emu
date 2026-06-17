@@ -31,19 +31,41 @@ pub enum Interrupt {
 /// Implementors expose the combined state of the Interrupt Enable (IE) and
 /// Interrupt Flag (IF) registers so the CPU can determine which interrupt to
 /// service next and mark it as handled.
-///
-/// Priority follows GB hardware convention: `VBlank` > `LCDStat` > `Timer` > `Serial` > `Joypad`.
-pub trait InterruptLine {
-    /// Returns the highest priority enabled pending interrupt, if any. Returns `None`
-    /// if no enabled interrupts are pending.
+pub trait InterruptBus {
+    /// Returns the currently requested interrupts (IF register).
+    ///
+    /// This represents interrupts that have been triggered by hardware events
+    /// but may not yet be enabled for servicing.
     #[must_use]
-    fn pending_interrupt(&self) -> Option<Interrupt>;
+    fn requested_interrupts(&self) -> InterruptFlags;
+
+    /// Returns the currently enabled interrupts (IE register).
+    ///
+    /// This represents which interrupts are allowed to be serviced by the CPU.
+    /// Only interrupts that are both requested and enabled will be considered
+    /// pending and be serviced.
+    #[must_use]
+    fn enabled_interrupts(&self) -> InterruptFlags;
 
     /// Acknowledge an interrupt.
     ///
     /// This will typically involve clearing the corresponding bit in the IF
     /// register to indicate that the interrupt is being serviced.
     fn acknowledge_interrupt(&mut self, interrupt: Interrupt);
+
+    /// Returns the highest priority pending interrupt, or `None` if no
+    /// interrupts are pending.
+    #[must_use]
+    fn highest_pending_interrupt(&self) -> Option<Interrupt> {
+        self.pending_interrupts().highest_priority()
+    }
+
+    /// Returns the set of interrupts that are both requested and enabled,
+    /// i.e. the interrupts that are pending and should be serviced by the CPU.
+    #[must_use]
+    fn pending_interrupts(&self) -> InterruptFlags {
+        self.requested_interrupts() & self.enabled_interrupts()
+    }
 }
 
 impl InterruptFlags {
