@@ -1,6 +1,6 @@
 use crate::interrupts::Interrupt;
 
-pub const INTERRUPT_DISPATCH_CYCLES: u32 = 5;
+pub const INTERRUPT_DISPATCH_CYCLES: u32 = 20;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InterruptJumpVector(u16);
@@ -44,7 +44,7 @@ impl From<Interrupt> for InterruptJumpVector {
 pub enum IME {
     /// IME flag is reset, and will be set after the next
     /// instruction is executed.
-    PendingEnable,
+    PendingEnable(u8), // `EI` own step counts as a cycle, so we had to add a counter to track the number of cycles before enabling IME.
 
     /// IME flag is set.
     Enabled,
@@ -57,7 +57,7 @@ impl IME {
     /// Enable the IME flag after the next instruction is executed. Default
     /// behavior of the EI instruction.
     pub const fn enable(&mut self) {
-        *self = Self::PendingEnable;
+        *self = Self::PendingEnable(1);
     }
 
     /// Disable the IME flag immediately.
@@ -71,14 +71,28 @@ impl IME {
         *self = Self::Enabled;
     }
 
+    /// Tick the IME flag.
+    ///
     /// Transition from `PendingEnable` to `Enabled`. No-op in other states.
     ///
-    /// Call once per CPU step, after interrupt dispatch, to honour the one-cycle
-    /// delay introduced by the EI instruction.
-    pub const fn commit_pending(&mut self) {
-        if matches!(self, Self::PendingEnable) {
+    /// Call once per CPU step, after instruction execution, to honour the one
+    /// cycle delay introduced by the EI instruction.
+    pub const fn tick(&mut self) {
+        if matches!(self, Self::PendingEnable(0)) {
             *self = Self::Enabled;
+        } else if let Self::PendingEnable(n) = self {
+            *self = Self::PendingEnable(*n - 1);
         }
+    }
+
+    /// Checks if the IME is in `Enabled` state.
+    pub const fn is_enabled(&self) -> bool {
+        matches!(self, Self::Enabled)
+    }
+
+    /// Checks if the IME is either in `Disabled` or `PendingEnable` state.
+    pub const fn is_disabled(&self) -> bool {
+        !self.is_enabled()
     }
 }
 
@@ -93,8 +107,10 @@ mod tests {
         fn ime_enable() {
             let mut ime = IME::Disabled;
             ime.enable();
-            assert_eq!(ime, IME::PendingEnable);
-            ime.commit_pending();
+            assert_eq!(ime, IME::PendingEnable(1));
+            ime.tick();
+            assert_eq!(ime, IME::PendingEnable(0));
+            ime.tick();
             assert_eq!(ime, IME::Enabled);
         }
 
@@ -113,13 +129,13 @@ mod tests {
         }
 
         #[test]
-        fn ime_commit_pending_noop() {
+        fn ime_tick_noop() {
             let mut ime = IME::Disabled;
-            ime.commit_pending();
+            ime.tick();
             assert_eq!(ime, IME::Disabled);
 
             ime.enable_now();
-            ime.commit_pending();
+            ime.tick();
             assert_eq!(ime, IME::Enabled);
         }
     }
