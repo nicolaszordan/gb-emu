@@ -44,7 +44,7 @@ impl From<Interrupt> for InterruptJumpVector {
 pub enum IME {
     /// IME flag is reset, and will be set after the next
     /// instruction is executed.
-    PendingEnable(u8), // we had to use a counter as the cpu `step` function calls the `commit_pending` function twice when the IME needs to be enabled
+    PendingEnable(u8), // `EI` own step counts as a cycle, so we had to add a counter to track the number of cycles before enabling IME.
 
     /// IME flag is set.
     Enabled,
@@ -71,12 +71,13 @@ impl IME {
         *self = Self::Enabled;
     }
 
+    /// Tick the IME flag.
+    ///
     /// Transition from `PendingEnable` to `Enabled`. No-op in other states.
     ///
     /// Call once per CPU step, after instruction execution, to honour the one
     /// cycle delay introduced by the EI instruction.
-    // TODO: i really dislike this name
-    pub const fn commit_pending(&mut self) {
+    pub const fn tick(&mut self) {
         if matches!(self, Self::PendingEnable(0)) {
             *self = Self::Enabled;
         } else if let Self::PendingEnable(n) = self {
@@ -107,9 +108,9 @@ mod tests {
             let mut ime = IME::Disabled;
             ime.enable();
             assert_eq!(ime, IME::PendingEnable(1));
-            ime.commit_pending();
+            ime.tick();
             assert_eq!(ime, IME::PendingEnable(0));
-            ime.commit_pending();
+            ime.tick();
             assert_eq!(ime, IME::Enabled);
         }
 
@@ -130,11 +131,11 @@ mod tests {
         #[test]
         fn ime_commit_pending_noop() {
             let mut ime = IME::Disabled;
-            ime.commit_pending();
+            ime.tick();
             assert_eq!(ime, IME::Disabled);
 
             ime.enable_now();
-            ime.commit_pending();
+            ime.tick();
             assert_eq!(ime, IME::Enabled);
         }
     }

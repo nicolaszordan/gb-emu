@@ -56,7 +56,7 @@ impl CPU {
     /// Returns the number of cycles taken to execute the instruction or handle any interrupts.
     pub(crate) fn step<B: MemoryBus + InterruptBus>(&mut self, bus: &mut B) -> u32 {
         // Halt handling needs to be done before checking for interrupts
-        // since pending interrupts need to be serviced when waking up from halt.
+        // since pending interrupts need to be serviced on wake up from halt.
         if let Some(cycles) = self.handle_halt(bus) {
             return cycles;
         }
@@ -69,11 +69,11 @@ impl CPU {
 
         let cycles = self.execute_instruction(bus, opcode);
 
-        // Commit any pending IME state changes after executing the instruction
+        // Tick the IME flag after executing the instruction
         // Note that the EI instructions sets the delay to 2 calls to
-        // `commit_pending` as we're taking into account the current call to
+        // `ime.tick()` as we're taking into account the current call to
         // `step` and the next one.
-        self.ime.commit_pending();
+        self.ime.tick();
 
         cycles
     }
@@ -133,7 +133,8 @@ impl CPU {
 
     /// Handle the halted state of the CPU.
     ///
-    /// Wakes if any interrupt is requested, otherwise consumes 4 cycles in the halted state.
+    /// Wakes if any enabled interrupt is requested, otherwise consumes 4 cycles
+    /// in the halted state.
     ///
     /// Returns `None` if the CPU is not halted and should continue with normal
     /// instruction dispatch (this includes when the CPU wakes up). Returns
@@ -144,7 +145,7 @@ impl CPU {
             return None;
         }
 
-        // Check if an interrupt has been requested to exit the halt state
+        // Check if an interrupt is pending to exit the halt state
         if bus.pending_interrupts().is_empty() {
             Some(HALTED_CYCLES)
         } else {
@@ -765,22 +766,22 @@ mod tests {
 
                 cpu.step(&mut bus); // 1st HALT instruction
 
-                assert_eq!(cpu.state, CPUState::HaltBug); // CPU is now awake due to halt bug behavior
-                assert_eq!(cpu.pc, 0x0101); // PC is still at the HALT instruction due to halt bug behavior
+                assert_eq!(cpu.state, CPUState::HaltBug); // CPU is in halt bug state
+                assert_eq!(cpu.pc, 0x0101); // PC is at the next instruction after the first HALT
+
+                cpu.step(&mut bus); // Execute the 2nd HALT instruction
+
+                assert_eq!(cpu.state, CPUState::HaltBug); // CPU is kept in halt bug state due to the second HALT
+                assert_eq!(cpu.pc, 0x0101); // PC stays on the second HALT instruction due to halt bug behavior
 
                 cpu.step(&mut bus); // Execute the HALT instruction again
 
-                assert_eq!(cpu.state, CPUState::HaltBug); // CPU is now properly halted
+                assert_eq!(cpu.state, CPUState::HaltBug); // CPU remains in halt bug state
                 assert_eq!(cpu.pc, 0x0101); // PC is now at the next instruction after the first HALT
 
                 cpu.step(&mut bus); // Execute the HALT instruction again
 
-                assert_eq!(cpu.state, CPUState::HaltBug); // CPU is now properly halted
-                assert_eq!(cpu.pc, 0x0101); // PC is now at the next instruction after the first HALT
-
-                cpu.step(&mut bus); // Execute the HALT instruction again
-
-                assert_eq!(cpu.state, CPUState::HaltBug); // CPU is now properly halted
+                assert_eq!(cpu.state, CPUState::HaltBug); // CPU remains in halt bug state
                 assert_eq!(cpu.pc, 0x0101); // PC is now at the next instruction after the first HALT
             }
         }

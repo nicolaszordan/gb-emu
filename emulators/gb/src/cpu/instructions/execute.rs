@@ -1000,8 +1000,48 @@ impl CPU {
         0
     }
 
-    pub(crate) fn instr_halt<IB: InterruptBus>(&mut self, interrupt_bus: &IB) -> u32 {
-        if self.ime.is_disabled() && !interrupt_bus.requested_interrupts().is_empty() {
+    /// Halt the CPU until an interrupt occurs.
+    ///
+    /// This instruction sets the CPU into a low-power state until an interrupt is
+    /// triggered.
+    ///
+    /// # Halt Bug
+    ///
+    /// If interrupts are disabled and an interrupt is pending, the CPU enters a
+    /// "halt bug" state. The halt bug is a known quirk of the Game Boy CPU
+    /// where the program counter does not increment correctly after a HALT
+    /// instruction.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let mut cpu = CPU::new();
+    /// let mut bus = Bus::new();
+    ///
+    /// cpu.ime = IME::Enabled; // interrupts are enabled
+    /// bus.enable_interrupt(Interrupt::VBlank); // enable VBlank interrupt
+    ///
+    /// cpu.instr_halt(&bus); // CPU enters halt state and will wake when a VBlank interrupt occurs
+    ///
+    /// assert!(cpu.state.is_halted());
+    /// ```
+    ///
+    /// Halt bug example:
+    ///
+    /// ```ignore
+    /// let mut cpu = CPU::new();
+    /// let mut bus = Bus::new();
+    ///
+    /// cpu.ime = IME::Disabled; // interrupts are disabled
+    /// bus.enable_interrupt(Interrupt::VBlank); // enable VBlank interrupt
+    /// bus.request_interrupt(Interrupt::VBlank); // VBlank interrupt is pending
+    ///
+    /// cpu.instr_halt(&bus); // CPU enters halt bug state
+    ///
+    /// assert!(cpu.state.is_halt_bug());
+    /// ```
+    pub(crate) fn instr_halt<IB: InterruptBus>(&mut self, bus: &IB) -> u32 {
+        if self.ime.is_disabled() && !bus.pending_interrupts().is_empty() {
             self.state.halt_bug();
         } else {
             self.state.halt();
@@ -2681,7 +2721,35 @@ mod tests {
             }
 
             #[test]
-            fn ime_disabled_with_interrupt() {
+            fn ime_enabled_with_not_enabled_interrupt() {
+                let mut cpu = CPU::new();
+                let mut bus = Bus::new();
+
+                cpu.ime.enable_now();
+
+                bus.request_interrupt(Interrupt::VBlank);
+
+                let cycles = cpu.instr_halt(&bus);
+
+                assert_eq!(cycles, 0);
+                assert!(matches!(cpu.state, CPUState::Halted));
+            }
+
+            #[test]
+            fn ime_disabled_with_not_enabled_interrupt() {
+                let mut cpu = CPU::new();
+                let mut bus = Bus::new();
+
+                bus.request_interrupt(Interrupt::VBlank);
+
+                let cycles = cpu.instr_halt(&bus);
+
+                assert_eq!(cycles, 0);
+                assert!(matches!(cpu.state, CPUState::Halted)); // this doesn't cause a halt bug because the interrupt in not enabled
+            }
+
+            #[test]
+            fn ime_disabled_with_pending_interrupt() {
                 let mut cpu = CPU::new();
                 let bus = Bus::with_pending(Interrupt::VBlank);
 

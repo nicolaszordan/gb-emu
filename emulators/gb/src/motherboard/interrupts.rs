@@ -45,11 +45,11 @@ impl InterruptRegisters {
     /// interrupt_registers.request_interrupt(Interrupt::VBlank);
     /// assert_eq!(interrupt_registers.interrupt_flags, InterruptFlags::VBLANK);
     ///
-    /// assert_eq!(interrupt_registers.pending_interrupt(), None); // no interrupts enabled, so pending_interrupt returns None
+    /// assert_eq!(interrupt_registers.highest_pending_interrupt(), None); // no interrupts enabled, so highest_pending_interrupt returns None
     ///
     /// interrupt_registers.enable_interrupt(Interrupt::VBlank); // enable the VBlank interrupt (note that this function is only available for testing)
     ///
-    /// assert_eq!(interrupt_registers.pending_interrupt(), Some(Interrupt::VBlank)); // now pending_interrupt returns the VBlank interrupt, since it is enabled and pending
+    /// assert_eq!(interrupt_registers.highest_pending_interrupt(), Some(Interrupt::VBlank)); // now highest_pending_interrupt returns the VBlank interrupt, since it is enabled and pending
     /// ```
     #[allow(dead_code)] // this method is not used yet, but will be when we implement other components that trigger interrupts
     pub fn request_interrupt(&mut self, interrupt: Interrupt) {
@@ -79,12 +79,12 @@ impl InterruptBus for InterruptRegisters {
     /// interrupt_registers.request_interrupt(Interrupt::Timer);
     /// interrupt_registers.enable_interrupt(Interrupt::Timer);
     ///
-    /// assert_eq!(interrupt_registers.pending_interrupt(), Some(Interrupt::Timer)); // Timer interrupt is pending
+    /// assert_eq!(interrupt_registers.highest_pending_interrupt(), Some(Interrupt::Timer)); // Timer interrupt is pending
     ///
     /// // Acknowledge the Timer interrupt
     /// interrupt_registers.acknowledge_interrupt(Interrupt::Timer);
     ///
-    /// assert_eq!(interrupt_registers.pending_interrupt(), None); // no interrupts are pending after acknowledging
+    /// assert_eq!(interrupt_registers.highest_pending_interrupt(), None); // no interrupts are pending after acknowledging
     /// ```
     fn acknowledge_interrupt(&mut self, interrupt: Interrupt) {
         self.interrupt_flags &= !InterruptFlags::from(interrupt);
