@@ -145,7 +145,7 @@ impl CPU {
         }
 
         // Check if an interrupt has been requested to exit the halt state
-        if bus.requested_interrupts().is_empty() {
+        if bus.pending_interrupts().is_empty() {
             Some(HALTED_CYCLES)
         } else {
             self.state.wake();
@@ -259,6 +259,14 @@ mod tests {
                 requested: InterruptFlags::from(interrupt),
                 ..Self::new()
             }
+        }
+
+        pub fn enable_interrupt(&mut self, interrupt: Interrupt) {
+            self.enabled |= InterruptFlags::from(interrupt);
+        }
+
+        pub fn request_interrupt(&mut self, interrupt: Interrupt) {
+            self.requested |= InterruptFlags::from(interrupt);
         }
     }
 
@@ -484,6 +492,27 @@ mod tests {
 
                 assert_eq!(cycles, None);
                 assert_eq!(cpu.state, CPUState::HaltBug);
+            }
+
+            #[test]
+            fn halt_when_not_enabled_interrupt() {
+                let mut cpu = CPU::new();
+                let mut bus = MockInterruptBus::new();
+
+                cpu.state = CPUState::Halted;
+                bus.request_interrupt(Interrupt::LCDStat); // request an interrupt, but don't enable it
+
+                let cycles = cpu.handle_halt(&bus);
+
+                assert_eq!(cycles, Some(HALTED_CYCLES));
+                assert_eq!(cpu.state, CPUState::Halted); // still halted since the interrupt is not enabled
+
+                bus.enable_interrupt(Interrupt::LCDStat); // now enable the interrupt
+
+                let cycles = cpu.handle_halt(&bus);
+
+                assert_eq!(cycles, None);
+                assert_eq!(cpu.state, CPUState::Running); // CPU is now awake since the interrupt is now enabled
             }
 
             #[test]
