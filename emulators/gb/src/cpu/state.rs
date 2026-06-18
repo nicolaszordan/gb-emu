@@ -1,4 +1,6 @@
-pub const HALTED_CYCLES: u32 = 4;
+use crate::cycles::TCycles;
+
+pub const HALTED_CYCLES: TCycles = TCycles::new(4);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CPUState {

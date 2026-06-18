@@ -1,4 +1,5 @@
 mod cpu;
+mod cycles;
 mod interrupts;
 mod motherboard;
 

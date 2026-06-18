@@ -1,4 +1,5 @@
 use crate::cpu::CPU;
+use crate::cycles::TCycles;
 use crate::interrupts::InterruptBus;
 
 use super::condition::Condition;
@@ -16,11 +17,11 @@ impl CPU {
         &mut self,
         bus: &mut B,
         opcode: u8,
-    ) -> u32 {
+    ) -> TCycles {
         let additional_cycles = match opcode {
             0x00 => {
                 // NOP
-                0
+                TCycles::ZERO
             }
             0x01 | 0x11 | 0x21 | 0x31 => {
                 self.instr_ld16(bus, R16Param::from(opcode >> 4).into(), LD16SrcParam::N16)
@@ -110,7 +111,7 @@ impl CPU {
             }
         };
 
-        u32::from(meta::UNPREFIXED_INSTRUCTIONS[opcode as usize].cycles) + additional_cycles
+        meta::UNPREFIXED_INSTRUCTIONS[opcode as usize].cycles + additional_cycles
     }
 
     /// Dispatch and execute an instruction from the extended instruction table
@@ -119,7 +120,7 @@ impl CPU {
         &mut self,
         mem_bus: &mut M,
         opcode: u8,
-    ) -> u32 {
+    ) -> TCycles {
         // NOTE: all extended hanlders return 0 => we're ignoring their return value and just return the cycles from the meta table.
         match opcode {
             0x00..=0x3F => self.instr_ext_bit_shift(
@@ -147,7 +148,7 @@ impl CPU {
             ),
         };
 
-        u32::from(meta::CBPREFIXED_INSTRUCTIONS[opcode as usize].cycles)
+        meta::CBPREFIXED_INSTRUCTIONS[opcode as usize].cycles
     }
 }
 
@@ -172,7 +173,7 @@ mod tests {
             cpu.registers.c = 0x01;
             let cycles = cpu.execute_instruction(&mut bus, 0x41); // LD B C
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert_eq!(cpu.registers.b, 0x01);
             assert_eq!(cpu.registers.c, 0x01);
         }
@@ -186,7 +187,7 @@ mod tests {
             cpu.registers.d = 0x01;
             let cycles = cpu.execute_instruction(&mut bus, 0x4A); // LD C D
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert_eq!(cpu.registers.c, 0x01);
             assert_eq!(cpu.registers.d, 0x01);
         }
@@ -200,7 +201,7 @@ mod tests {
             cpu.registers.e = 0x01;
             let cycles = cpu.execute_instruction(&mut bus, 0x53); // LD D E
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert_eq!(cpu.registers.d, 0x01);
             assert_eq!(cpu.registers.e, 0x01);
         }
@@ -214,7 +215,7 @@ mod tests {
             cpu.registers.h = 0x01;
             let cycles = cpu.execute_instruction(&mut bus, 0x5C); // LD E H
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert_eq!(cpu.registers.e, 0x01);
             assert_eq!(cpu.registers.h, 0x01);
         }
@@ -228,7 +229,7 @@ mod tests {
             cpu.registers.l = 0x01;
             let cycles = cpu.execute_instruction(&mut bus, 0x65); // LD H L
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert_eq!(cpu.registers.h, 0x01);
             assert_eq!(cpu.registers.l, 0x01);
         }
@@ -243,7 +244,7 @@ mod tests {
             bus.write(0x1234, 0x56);
             let cycles = cpu.execute_instruction(&mut bus, 0x6E); // LD L [HL]
 
-            assert_eq!(cycles, 8);
+            assert_eq!(cycles, 8.into());
             assert_eq!(cpu.registers.l, 0x56);
             assert_eq!(bus.read(0x1234), 0x56);
         }
@@ -259,7 +260,7 @@ mod tests {
             cpu.registers.a = 0x01;
             let cycles = cpu.execute_instruction(&mut bus, 0x77); // LD [HL] A
 
-            assert_eq!(cycles, 8);
+            assert_eq!(cycles, 8.into());
             assert_eq!(bus.read(0x1234), 0x01);
             assert_eq!(cpu.registers.a, 0x01);
         }
@@ -272,7 +273,7 @@ mod tests {
             cpu.registers.a = 0xFF;
             let cycles = cpu.execute_instruction(&mut bus, 0x7F); // LD A A
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert_eq!(cpu.registers.a, 0xFF);
         }
 
@@ -286,7 +287,7 @@ mod tests {
             bus.write(0x0034, 0x56);
             let cycles = cpu.execute_instruction(&mut bus, 0x1E); // LD E n8
 
-            assert_eq!(cycles, 8);
+            assert_eq!(cycles, 8.into());
             assert_eq!(cpu.pc, 0x35);
             assert_eq!(cpu.registers.e, 0x56);
             assert_eq!(bus.read(0x0034), 0x56);
@@ -304,7 +305,7 @@ mod tests {
             bus.write(0x1234, 0x78);
             let cycles = cpu.execute_instruction(&mut bus, 0x36); // LD [HL] n8
 
-            assert_eq!(cycles, 12);
+            assert_eq!(cycles, 12.into());
             assert_eq!(cpu.pc, 0x35);
             assert_eq!(cpu.registers.h, 0x12);
             assert_eq!(cpu.registers.l, 0x34);
@@ -322,7 +323,7 @@ mod tests {
             bus.write(0x1234, 0x56);
             let cycles = cpu.execute_instruction(&mut bus, 0x0A); // LD A [BC]
 
-            assert_eq!(cycles, 8);
+            assert_eq!(cycles, 8.into());
             assert_eq!(cpu.registers.a, 0x56);
             assert_eq!(bus.read(0x1234), 0x56);
         }
@@ -337,7 +338,7 @@ mod tests {
             bus.write(0x1234, 0x56);
             let cycles = cpu.execute_instruction(&mut bus, 0x1A); // LD A [DE]
 
-            assert_eq!(cycles, 8);
+            assert_eq!(cycles, 8.into());
             assert_eq!(cpu.registers.a, 0x56);
             assert_eq!(bus.read(0x1234), 0x56);
         }
@@ -353,7 +354,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0x2A); // LD A [HL+]
 
-            assert_eq!(cycles, 8);
+            assert_eq!(cycles, 8.into());
             assert_eq!(cpu.registers.a, 0x56);
             assert_eq!(bus.read(0x1234), 0x56);
             assert_eq!(cpu.registers.hl_get(), 0x1235);
@@ -370,7 +371,7 @@ mod tests {
             cpu.registers.a = 0x78;
             let cycles = cpu.execute_instruction(&mut bus, 0x12); // LD [DE] A
 
-            assert_eq!(cycles, 8);
+            assert_eq!(cycles, 8.into());
             assert_eq!(bus.read(0x1234), 0x78);
             assert_eq!(cpu.registers.a, 0x78);
         }
@@ -386,7 +387,7 @@ mod tests {
             cpu.registers.a = 0x78;
             let cycles = cpu.execute_instruction(&mut bus, 0x32); // LD [HL-] A
 
-            assert_eq!(cycles, 8);
+            assert_eq!(cycles, 8.into());
             assert_eq!(bus.read(0x1234), 0x78);
             assert_eq!(cpu.registers.a, 0x78);
             assert_eq!(cpu.registers.hl_get(), 0x1233);
@@ -402,7 +403,7 @@ mod tests {
             cpu.registers.a = 0x78;
             let cycles = cpu.execute_instruction(&mut bus, 0xE0); // LD [0xFF00 + n8] A
 
-            assert_eq!(cycles, 12);
+            assert_eq!(cycles, 12.into());
             assert_eq!(bus.read(0xFF56), 0x78);
             assert_eq!(cpu.registers.a, 0x78);
             assert_eq!(cpu.pc, 0x1235);
@@ -419,7 +420,7 @@ mod tests {
                 bus.write(0xFF34, 0x56);
                 let cycles = cpu.execute_instruction(&mut bus, 0xF2); // LD A [0xFF00 + C]
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.registers.a, 0x56);
                 assert_eq!(bus.read(0xFF34), 0x56);
             }
@@ -435,7 +436,7 @@ mod tests {
             bus.write(0x5678, 0x9A);
             let cycles = cpu.execute_instruction(&mut bus, 0xFA); // LD A [N16]
 
-            assert_eq!(cycles, 16);
+            assert_eq!(cycles, 16.into());
             assert_eq!(cpu.registers.a, 0x9A);
             assert_eq!(bus.read(0x5678), 0x9A);
             assert_eq!(cpu.pc, 0x1236);
@@ -451,7 +452,7 @@ mod tests {
             cpu.registers.a = 0x9A;
             let cycles = cpu.execute_instruction(&mut bus, 0xEA); // LD [N16] A
 
-            assert_eq!(cycles, 16);
+            assert_eq!(cycles, 16.into());
             assert_eq!(bus.read(0x5678), 0x9A);
             assert_eq!(cpu.registers.a, 0x9A);
             assert_eq!(cpu.pc, 0x1236);
@@ -471,7 +472,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0x01); // LD BC n16
 
-            assert_eq!(cycles, 12);
+            assert_eq!(cycles, 12.into());
             assert_eq!(cpu.registers.bc_get(), 0x5678);
             assert_eq!(bus.read(0x1234), 0x78);
             assert_eq!(bus.read(0x1235), 0x56);
@@ -488,7 +489,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0x21); // LD HL n16
 
-            assert_eq!(cycles, 12);
+            assert_eq!(cycles, 12.into());
             assert_eq!(cpu.registers.hl_get(), 0x5678);
             assert_eq!(bus.read(0x1234), 0x78);
             assert_eq!(bus.read(0x1235), 0x56);
@@ -505,7 +506,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0x31); // LD SP n16
 
-            assert_eq!(cycles, 12);
+            assert_eq!(cycles, 12.into());
             assert_eq!(cpu.sp, 0x5678);
             assert_eq!(bus.read(0x1234), 0x78);
             assert_eq!(bus.read(0x1235), 0x56);
@@ -523,7 +524,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0x08); // LD [N16] SP
 
-            assert_eq!(cycles, 20);
+            assert_eq!(cycles, 20.into());
             assert_eq!(bus.read_word(0x5678), 0x9ABC);
             assert_eq!(cpu.sp, 0x9ABC);
             assert_eq!(cpu.pc, 0x1236);
@@ -538,7 +539,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0xF9); // LD SP HL
 
-            assert_eq!(cycles, 8);
+            assert_eq!(cycles, 8.into());
             assert_eq!(cpu.sp, 0x9ABC);
             assert_eq!(cpu.registers.hl_get(), 0x9ABC);
         }
@@ -556,7 +557,7 @@ mod tests {
             cpu.registers.b = 0x01;
             let cycles = cpu.execute_instruction(&mut bus, 0x80); // ADD B
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert_eq!(cpu.registers.a, 0x00);
         }
 
@@ -570,7 +571,7 @@ mod tests {
             cpu.registers.flags.c = true;
             let cycles = cpu.execute_instruction(&mut bus, 0x89); // ADC C
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert_eq!(cpu.registers.a, 0x10);
         }
 
@@ -583,7 +584,7 @@ mod tests {
             cpu.registers.d = 0x0F;
             let cycles = cpu.execute_instruction(&mut bus, 0x92); // SUB D
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert_eq!(cpu.registers.a, 0xF1);
         }
 
@@ -597,7 +598,7 @@ mod tests {
             cpu.registers.flags.c = true;
             let cycles = cpu.execute_instruction(&mut bus, 0x9B); // SBC E
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert_eq!(cpu.registers.a, 0xF0);
         }
 
@@ -610,7 +611,7 @@ mod tests {
             cpu.registers.h = 0b0000_1111;
             let cycles = cpu.execute_instruction(&mut bus, 0xA4); // AND H
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert_eq!(cpu.registers.a, 0b0000_1100);
         }
 
@@ -623,7 +624,7 @@ mod tests {
             cpu.registers.l = 0b0000_1111;
             let cycles = cpu.execute_instruction(&mut bus, 0xAD); // XOR L
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert_eq!(cpu.registers.a, 0b0011_0011);
         }
 
@@ -638,7 +639,7 @@ mod tests {
             bus.write(0x1234, 0b0000_1111);
             let cycles = cpu.execute_instruction(&mut bus, 0xB6); // OR [HL]
 
-            assert_eq!(cycles, 8);
+            assert_eq!(cycles, 8.into());
             assert_eq!(cpu.registers.a, 0b0011_1111);
         }
 
@@ -650,7 +651,7 @@ mod tests {
             cpu.registers.a = 0b0011_1100;
             let cycles = cpu.execute_instruction(&mut bus, 0xBF); // CP A
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert_eq!(cpu.registers.a, 0b0011_1100);
             assert!(cpu.registers.flags.z);
             assert!(cpu.registers.flags.n);
@@ -668,7 +669,7 @@ mod tests {
             bus.write(0x1234, 0x01);
             let cycles = cpu.execute_instruction(&mut bus, 0xC6); // ADD N8
 
-            assert_eq!(cycles, 8);
+            assert_eq!(cycles, 8.into());
             assert_eq!(cpu.pc, 0x1235);
             assert_eq!(cpu.registers.a, 0x00);
         }
@@ -683,7 +684,7 @@ mod tests {
             bus.write(0x1234, 0b0000_1111);
             let cycles = cpu.execute_instruction(&mut bus, 0xEE); // XOR N8
 
-            assert_eq!(cycles, 8);
+            assert_eq!(cycles, 8.into());
             assert_eq!(cpu.pc, 0x1235);
             assert_eq!(cpu.registers.a, 0b0011_0011);
         }
@@ -696,7 +697,7 @@ mod tests {
             cpu.registers.b = 0xFF;
             let cycles = cpu.execute_instruction(&mut bus, 0x04); // INC B
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert_eq!(cpu.registers.b, 0x00);
         }
 
@@ -708,7 +709,7 @@ mod tests {
             cpu.registers.l = 0xF0;
             let cycles = cpu.execute_instruction(&mut bus, 0x2C); // INC L
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert_eq!(cpu.registers.l, 0xF1);
         }
 
@@ -720,7 +721,7 @@ mod tests {
             cpu.registers.h = 0xFF;
             let cycles = cpu.execute_instruction(&mut bus, 0x25); // DEC H
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert_eq!(cpu.registers.h, 0xFE);
         }
 
@@ -732,7 +733,7 @@ mod tests {
             cpu.registers.a = 0x20;
             let cycles = cpu.execute_instruction(&mut bus, 0x3D); // DEC A
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert_eq!(cpu.registers.a, 0x1F);
         }
 
@@ -748,7 +749,7 @@ mod tests {
 
                 let cycles = cpu.execute_instruction(&mut bus, 0x07); // RLCA
 
-                assert_eq!(cycles, 4);
+                assert_eq!(cycles, 4.into());
                 assert_eq!(cpu.registers.a, 0b0010_1101);
                 assert!(cpu.registers.flags.c);
             }
@@ -762,7 +763,7 @@ mod tests {
 
                 let cycles = cpu.execute_instruction(&mut bus, 0x0F); // RRCA
 
-                assert_eq!(cycles, 4);
+                assert_eq!(cycles, 4.into());
                 assert_eq!(cpu.registers.a, 0b0100_1011);
             }
 
@@ -776,7 +777,7 @@ mod tests {
 
                 let cycles = cpu.execute_instruction(&mut bus, 0x17); // RLA
 
-                assert_eq!(cycles, 4);
+                assert_eq!(cycles, 4.into());
                 assert_eq!(cpu.registers.a, 0b0000_0000);
                 assert!(!cpu.registers.flags.z); // RLA does not set the Z flag when a is 0
                 assert!(cpu.registers.flags.c);
@@ -796,7 +797,7 @@ mod tests {
             cpu.registers.bc_set(0x1111);
             let cycles = cpu.execute_instruction(&mut bus, 0x09); // ADD HL BC
 
-            assert_eq!(cycles, 8);
+            assert_eq!(cycles, 8.into());
             assert_eq!(cpu.registers.hl_get(), 0x2345);
         }
 
@@ -808,7 +809,7 @@ mod tests {
             cpu.registers.hl_set(0x1234);
             let cycles = cpu.execute_instruction(&mut bus, 0x29); // ADD HL HL
 
-            assert_eq!(cycles, 8);
+            assert_eq!(cycles, 8.into());
             assert_eq!(cpu.registers.hl_get(), 0x2468);
         }
 
@@ -821,7 +822,7 @@ mod tests {
             cpu.sp = 0x1111;
             let cycles = cpu.execute_instruction(&mut bus, 0x39); // ADD HL SP
 
-            assert_eq!(cycles, 8);
+            assert_eq!(cycles, 8.into());
             assert_eq!(cpu.registers.hl_get(), 0x2345);
         }
 
@@ -836,7 +837,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0xE8); // ADD SP E8
 
-            assert_eq!(cycles, 16);
+            assert_eq!(cycles, 16.into());
             assert_eq!(cpu.pc, 0x1235); // moved over e8
             assert_eq!(cpu.sp, 0xFFFE);
         }
@@ -852,7 +853,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0xF8); // LD HL SP+E8
 
-            assert_eq!(cycles, 12);
+            assert_eq!(cycles, 12.into());
             assert_eq!(cpu.pc, 0x1235); // moved over e8
             assert_eq!(cpu.sp, 0xFFF8);
             assert_eq!(cpu.registers.hl_get(), 0x0002);
@@ -867,7 +868,7 @@ mod tests {
             cpu.registers.l = 0x34;
             let cycles = cpu.execute_instruction(&mut bus, 0x23); // INC HL
 
-            assert_eq!(cycles, 8);
+            assert_eq!(cycles, 8.into());
             assert_eq!(cpu.registers.hl_get(), 0x1235);
         }
 
@@ -879,7 +880,7 @@ mod tests {
             cpu.sp = 0x12FF;
             let cycles = cpu.execute_instruction(&mut bus, 0x33); // INC SP
 
-            assert_eq!(cycles, 8);
+            assert_eq!(cycles, 8.into());
             assert_eq!(cpu.sp, 0x1300);
         }
 
@@ -892,7 +893,7 @@ mod tests {
             cpu.registers.c = 0x00;
             let cycles = cpu.execute_instruction(&mut bus, 0x0B); // DEC BC
 
-            assert_eq!(cycles, 8);
+            assert_eq!(cycles, 8.into());
             assert_eq!(cpu.registers.bc_get(), 0x11FF);
         }
 
@@ -904,7 +905,7 @@ mod tests {
             cpu.sp = 0x1234;
             let cycles = cpu.execute_instruction(&mut bus, 0x3B); // DEC SP
 
-            assert_eq!(cycles, 8);
+            assert_eq!(cycles, 8.into());
             assert_eq!(cpu.sp, 0x1233);
         }
     }
@@ -922,7 +923,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0xD5); // PUSH DE
 
-            assert_eq!(cycles, 16);
+            assert_eq!(cycles, 16.into());
             assert_eq!(bus.read(0xFFFC), 0x34); // lo - E
             assert_eq!(bus.read(0xFFFD), 0x12); // hi - D
             assert_eq!(cpu.sp, 0xFFFC);
@@ -942,7 +943,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0xF5); // PUSH AF
 
-            assert_eq!(cycles, 16);
+            assert_eq!(cycles, 16.into());
             assert_eq!(bus.read(0xFFF4), 0b1010_0000); // lo - F
             assert_eq!(bus.read(0xFFF5), 0x56); // hi - A
             assert_eq!(cpu.sp, 0xFFF4);
@@ -959,7 +960,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0xC1); // POP BC
 
-            assert_eq!(cycles, 12);
+            assert_eq!(cycles, 12.into());
             assert_eq!(cpu.registers.bc_get(), 0x1234);
             assert_eq!(cpu.sp, 0xFFFE); // sp should have moved up by 2
         }
@@ -975,7 +976,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0xE1); // POP HL
 
-            assert_eq!(cycles, 12);
+            assert_eq!(cycles, 12.into());
             assert_eq!(cpu.registers.hl_get(), 0x1234);
             assert_eq!(cpu.sp, 0xFFF4); // sp should have moved up by 2
         }
@@ -997,7 +998,7 @@ mod tests {
 
                 let cycles = cpu.execute_instruction(&mut bus, 0x18); // JR e8
 
-                assert_eq!(cycles, 12);
+                assert_eq!(cycles, 12.into());
                 assert_eq!(cpu.pc, 0x1233); // +1 from e8 fetch -2 from jr
             }
 
@@ -1013,7 +1014,7 @@ mod tests {
                 let cycles = cpu.execute_instruction(&mut bus, 0x28); // JR Z e8
                 // jump should succeed
 
-                assert_eq!(cycles, 12);
+                assert_eq!(cycles, 12.into());
                 assert_eq!(cpu.pc, 0x1224); // +1 from e8 fetch -11 from jr
 
                 bus.write(0x1224, 0x20);
@@ -1022,7 +1023,7 @@ mod tests {
                 let cycles = cpu.execute_instruction(&mut bus, 0x28); // JR Z e8
                 // jump should fail
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.pc, 0x1225); // +1 from e8 fetch
             }
 
@@ -1038,7 +1039,7 @@ mod tests {
                 let cycles = cpu.execute_instruction(&mut bus, 0x30); // JR NC e8
                 // jump should fail
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.pc, 0x1235); // +1 from e8
 
                 bus.write(0x1235, 0x20);
@@ -1047,7 +1048,7 @@ mod tests {
                 let cycles = cpu.execute_instruction(&mut bus, 0x30); // JR NC e8
                 // jump should succeed
 
-                assert_eq!(cycles, 12);
+                assert_eq!(cycles, 12.into());
                 assert_eq!(cpu.pc, 0x1256); // +1 from e8 fetch + 20 from jr
             }
         }
@@ -1065,7 +1066,7 @@ mod tests {
 
                 let cycles = cpu.execute_instruction(&mut bus, 0xC3); // JP N16
 
-                assert_eq!(cycles, 16);
+                assert_eq!(cycles, 16.into());
                 assert_eq!(cpu.pc, 0x2345);
             }
 
@@ -1079,7 +1080,7 @@ mod tests {
 
                 let cycles = cpu.execute_instruction(&mut bus, 0xE9); // JP HL
 
-                assert_eq!(cycles, 4);
+                assert_eq!(cycles, 4.into());
                 assert_eq!(cpu.pc, 0x4321);
             }
 
@@ -1094,7 +1095,7 @@ mod tests {
 
                 let cycles = cpu.execute_instruction(&mut bus, 0xC2); // JP NZ N16
 
-                assert_eq!(cycles, 16); // 12 base + 4 for taken branch
+                assert_eq!(cycles, 16.into()); // 12 base + 4 for taken branch
                 assert_eq!(cpu.pc, 0x5678);
 
                 cpu.pc = 0x1234;
@@ -1103,7 +1104,7 @@ mod tests {
                 cpu.registers.flags.z = true; // NZ condition not met — jump not taken
                 let cycles = cpu.execute_instruction(&mut bus, 0xC2); // JP NZ N16
 
-                assert_eq!(cycles, 12);
+                assert_eq!(cycles, 12.into());
                 assert_eq!(cpu.pc, 0x1236);
             }
 
@@ -1118,7 +1119,7 @@ mod tests {
                 cpu.registers.flags.c = true; // C condition met
                 let cycles = cpu.execute_instruction(&mut bus, 0xDA); // JP C N16
 
-                assert_eq!(cycles, 16);
+                assert_eq!(cycles, 16.into());
                 assert_eq!(cpu.pc, 0x5678);
 
                 cpu.pc = 0x1234;
@@ -1127,7 +1128,7 @@ mod tests {
                 cpu.registers.flags.c = false; // C condition not met — jump not taken
                 let cycles = cpu.execute_instruction(&mut bus, 0xDA); // JP C N16
 
-                assert_eq!(cycles, 12);
+                assert_eq!(cycles, 12.into());
                 assert_eq!(cpu.pc, 0x1236);
             }
         }
@@ -1150,7 +1151,7 @@ mod tests {
 
                 let cycles = cpu.execute_instruction(&mut bus, 0xCD); // CALL N16
 
-                assert_eq!(cycles, 24);
+                assert_eq!(cycles, 24.into());
                 assert_eq!(cpu.pc, 0x5678);
                 assert_eq!(cpu.sp, 0xFFFC);
                 assert_eq!(cpu.stack().peek_word(&bus), 0x1236); // return address is pc after N16 fetch
@@ -1168,7 +1169,7 @@ mod tests {
                 cpu.registers.flags.z = true; // Z condition met
                 let cycles = cpu.execute_instruction(&mut bus, 0xCC); // CALL Z N16
 
-                assert_eq!(cycles, 24); // 12 base + 12 for taken branch
+                assert_eq!(cycles, 24.into()); // 12 base + 12 for taken branch
                 assert_eq!(cpu.pc, 0x5678);
                 assert_eq!(cpu.sp, 0xFFFC); // stack + 2 in size
                 assert_eq!(cpu.stack().peek_word(&bus), 0x1236); // old pc after N16
@@ -1179,7 +1180,7 @@ mod tests {
                 cpu.registers.flags.z = false; // Z condition not met — call not taken
                 let cycles = cpu.execute_instruction(&mut bus, 0xCC); // CALL Z N16
 
-                assert_eq!(cycles, 12); // 12 base
+                assert_eq!(cycles, 12.into()); // 12 base
                 assert_eq!(cpu.pc, 0x1236); // pc after N16
                 assert_eq!(cpu.sp, 0xFFFE); // stack unchanged
             }
@@ -1196,7 +1197,7 @@ mod tests {
                 cpu.registers.flags.c = false; // NC condition met
                 let cycles = cpu.execute_instruction(&mut bus, 0xD4); // CALL NC N16
 
-                assert_eq!(cycles, 24); // 12 base + 12 for taken branch
+                assert_eq!(cycles, 24.into()); // 12 base + 12 for taken branch
                 assert_eq!(cpu.pc, 0x5678);
                 assert_eq!(cpu.sp, 0xFFFC); // stack + 2 in size
                 assert_eq!(cpu.stack().peek_word(&bus), 0x1236); // old pc after N16
@@ -1207,7 +1208,7 @@ mod tests {
                 cpu.registers.flags.c = true; // NC condition not met — call not taken
                 let cycles = cpu.execute_instruction(&mut bus, 0xD4); // CALL NC N16
 
-                assert_eq!(cycles, 12); // 12 base
+                assert_eq!(cycles, 12.into()); // 12 base
                 assert_eq!(cpu.pc, 0x1236); // pc after N16
                 assert_eq!(cpu.sp, 0xFFFE); // stack unchanged
             }
@@ -1227,7 +1228,7 @@ mod tests {
 
                 let cycles = cpu.execute_instruction(&mut bus, 0xC9); // RET
 
-                assert_eq!(cycles, 16);
+                assert_eq!(cycles, 16.into());
                 assert_eq!(cpu.pc, 0x5678);
                 assert_eq!(cpu.sp, 0xFFFE);
             }
@@ -1243,7 +1244,7 @@ mod tests {
 
                 let cycles = cpu.execute_instruction(&mut bus, 0xD9); // RETI
 
-                assert_eq!(cycles, 16);
+                assert_eq!(cycles, 16.into());
                 assert_eq!(cpu.pc, 0x5678);
                 assert_eq!(cpu.sp, 0xFFFE);
                 assert!(matches!(cpu.ime, IME::Enabled));
@@ -1261,7 +1262,7 @@ mod tests {
                 cpu.registers.flags.z = false; // NZ condition met
                 let cycles = cpu.execute_instruction(&mut bus, 0xC0); // RET NZ
 
-                assert_eq!(cycles, 20); // 8 base + 12 for taken branch
+                assert_eq!(cycles, 20.into()); // 8 base + 12 for taken branch
                 assert_eq!(cpu.pc, 0x5678);
                 assert_eq!(cpu.sp, 0xFFFE);
 
@@ -1271,7 +1272,7 @@ mod tests {
                 cpu.registers.flags.z = true; // NZ condition not met — ret not taken
                 let cycles = cpu.execute_instruction(&mut bus, 0xC0); // RET NZ
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.pc, 0x1234);
                 assert_eq!(cpu.sp, 0xFFFC); // stack unchanged
             }
@@ -1288,7 +1289,7 @@ mod tests {
                 cpu.registers.flags.c = true; // C condition met
                 let cycles = cpu.execute_instruction(&mut bus, 0xD8); // RET C
 
-                assert_eq!(cycles, 20);
+                assert_eq!(cycles, 20.into());
                 assert_eq!(cpu.pc, 0x5678);
                 assert_eq!(cpu.sp, 0xFFFE);
 
@@ -1298,7 +1299,7 @@ mod tests {
                 cpu.registers.flags.c = false; // C condition not met — ret not taken
                 let cycles = cpu.execute_instruction(&mut bus, 0xD8); // RET C
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.pc, 0x1234);
                 assert_eq!(cpu.sp, 0xFFFC);
             }
@@ -1317,7 +1318,7 @@ mod tests {
 
                 let cycles = cpu.execute_instruction(&mut bus, 0xC7); // RST $00
 
-                assert_eq!(cycles, 16);
+                assert_eq!(cycles, 16.into());
                 assert_eq!(cpu.pc, 0x0000);
                 assert_eq!(cpu.sp, 0xFFFC);
                 assert_eq!(cpu.stack().peek_word(&bus), 0x1234);
@@ -1333,7 +1334,7 @@ mod tests {
 
                 let cycles = cpu.execute_instruction(&mut bus, 0xDF); // RST $18
 
-                assert_eq!(cycles, 16);
+                assert_eq!(cycles, 16.into());
                 assert_eq!(cpu.pc, 0x0018);
                 assert_eq!(cpu.sp, 0xFFFC);
                 assert_eq!(cpu.stack().peek_word(&bus), 0x1234);
@@ -1349,7 +1350,7 @@ mod tests {
 
                 let cycles = cpu.execute_instruction(&mut bus, 0xF7); // RST $30
 
-                assert_eq!(cycles, 16);
+                assert_eq!(cycles, 16.into());
                 assert_eq!(cpu.pc, 0x0030);
                 assert_eq!(cpu.sp, 0xFFFC);
                 assert_eq!(cpu.stack().peek_word(&bus), 0x1234);
@@ -1365,7 +1366,7 @@ mod tests {
 
                 let cycles = cpu.execute_instruction(&mut bus, 0xFF); // RST $38
 
-                assert_eq!(cycles, 16);
+                assert_eq!(cycles, 16.into());
                 assert_eq!(cpu.pc, 0x0038);
                 assert_eq!(cpu.sp, 0xFFFC);
                 assert_eq!(cpu.stack().peek_word(&bus), 0x1234);
@@ -1383,7 +1384,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0x00);
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
         }
 
         #[test]
@@ -1396,7 +1397,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0x27); // DAA
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert_eq!(cpu.registers.a, 0x59); // 0xF3 +0x66
             assert!(cpu.registers.flags.c);
             assert!(!cpu.registers.flags.h);
@@ -1411,7 +1412,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0x2F); // CPL
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert_eq!(cpu.registers.a, 0b0110_1001); // a's complement
         }
 
@@ -1422,7 +1423,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0x37); // SCF
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert!(cpu.registers.flags.c); // carry as been set
         }
 
@@ -1433,12 +1434,12 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0x3F); // CCF
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert!(cpu.registers.flags.c); // carry is flipped to true
 
             let cycles = cpu.execute_instruction(&mut bus, 0x3F); // CCF
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert!(!cpu.registers.flags.c); // carry is flipped to false
         }
 
@@ -1458,7 +1459,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0x76); // HALT
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert!(matches!(cpu.state, CPUState::Halted));
         }
 
@@ -1469,7 +1470,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0xFB); // EI
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert!(matches!(cpu.ime, IME::PendingEnable(1)));
         }
 
@@ -1482,7 +1483,7 @@ mod tests {
 
             let cycles = cpu.execute_instruction(&mut bus, 0xF3); // DI
 
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert!(matches!(cpu.ime, IME::Disabled));
         }
 
@@ -1522,7 +1523,7 @@ mod tests {
 
                 let cycles = cpu.execute_instruction(&mut bus, 0xCB); // PREFIX
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.pc, 0x1235); // moved over prefix param
                 assert_eq!(cpu.registers.l, 0b0010_1101);
                 assert!(!cpu.registers.flags.c);
@@ -1543,7 +1544,7 @@ mod tests {
 
                 let cycles = cpu.execute_instruction(&mut bus, 0xCB); // PREFIX
 
-                assert_eq!(cycles, 12);
+                assert_eq!(cycles, 12.into());
                 assert_eq!(cpu.pc, 0x1235);
                 assert!(!cpu.registers.flags.z);
             }
@@ -1561,7 +1562,7 @@ mod tests {
 
                 let cycles = cpu.execute_instruction(&mut bus, 0xCB); // PREFIX
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.pc, 0x1235); // moved over prefix param
                 assert_eq!(cpu.registers.a, 0b1111_0111);
             }
@@ -1578,7 +1579,7 @@ mod tests {
 
                 let cycles = cpu.execute_instruction(&mut bus, 0xCB); // PREFIX
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.pc, 0x1235); // moved over prefix param
                 assert_eq!(cpu.registers.e, 0b1100_0000);
             }
@@ -1596,7 +1597,7 @@ mod tests {
 
                 let cycles = cpu.execute_extended_instruction(&mut bus, 0x01); // RLC C
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.registers.c, 0b0010_1101);
                 assert!(cpu.registers.flags.c);
             }
@@ -1610,7 +1611,7 @@ mod tests {
 
                 let cycles = cpu.execute_extended_instruction(&mut bus, 0x0A); // RRC D
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.registers.d, 0b0100_1011);
             }
 
@@ -1624,7 +1625,7 @@ mod tests {
 
                 let cycles = cpu.execute_extended_instruction(&mut bus, 0x13); // RL E
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.registers.e, 0b0010_1101);
                 assert!(cpu.registers.flags.c);
             }
@@ -1639,7 +1640,7 @@ mod tests {
 
                 let cycles = cpu.execute_extended_instruction(&mut bus, 0x1C); // RR H
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.registers.h, 0b1100_1011);
                 assert!(!cpu.registers.flags.c);
             }
@@ -1653,7 +1654,7 @@ mod tests {
 
                 let cycles = cpu.execute_extended_instruction(&mut bus, 0x25); // SLA L
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.registers.l, 0b0010_1100);
                 assert!(cpu.registers.flags.c);
             }
@@ -1669,7 +1670,7 @@ mod tests {
 
                 let cycles = cpu.execute_extended_instruction(&mut bus, 0x2E); // SRA [HL]
 
-                assert_eq!(cycles, 16);
+                assert_eq!(cycles, 16.into());
                 assert_eq!(bus.read(0x1234), 0b1100_1011); // bit 7 should remain unchanged
             }
 
@@ -1682,7 +1683,7 @@ mod tests {
 
                 let cycles = cpu.execute_extended_instruction(&mut bus, 0x30); // SWAP B
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.registers.b, 0b0110_1001);
             }
 
@@ -1694,7 +1695,7 @@ mod tests {
                 cpu.registers.a = 0b1001_0110;
                 let cycles = cpu.execute_extended_instruction(&mut bus, 0x3F);
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.registers.a, 0b0100_1011);
             }
         }
@@ -1712,7 +1713,7 @@ mod tests {
 
                 let cycles = cpu.execute_extended_instruction(&mut bus, 0x40); // BIT 0 B
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert!(cpu.registers.flags.z);
             }
 
@@ -1726,7 +1727,7 @@ mod tests {
 
                 let cycles = cpu.execute_extended_instruction(&mut bus, 0x59); // BIT 3 C
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert!(!cpu.registers.flags.z);
             }
 
@@ -1740,7 +1741,7 @@ mod tests {
 
                 let cycles = cpu.execute_extended_instruction(&mut bus, 0x72); // BIT 6 D
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert!(cpu.registers.flags.z);
             }
         }
@@ -1757,7 +1758,7 @@ mod tests {
 
                 let cycles = cpu.execute_extended_instruction(&mut bus, 0x8B); // RES 1 E
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.registers.e, 0b1111_1101);
             }
 
@@ -1770,7 +1771,7 @@ mod tests {
 
                 let cycles = cpu.execute_extended_instruction(&mut bus, 0xA4); // RES 4 H
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.registers.h, 0b1110_1111);
             }
 
@@ -1783,7 +1784,7 @@ mod tests {
 
                 let cycles = cpu.execute_extended_instruction(&mut bus, 0xBD); // RES 7 L
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.registers.l, 0b0111_1111);
             }
         }
@@ -1802,7 +1803,7 @@ mod tests {
 
                 let cycles = cpu.execute_extended_instruction(&mut bus, 0xD6); // SET 2 [HL]
 
-                assert_eq!(cycles, 16);
+                assert_eq!(cycles, 16.into());
                 assert_eq!(bus.read(0x1234), 0b0000_0100);
             }
 
@@ -1815,7 +1816,7 @@ mod tests {
 
                 let cycles = cpu.execute_extended_instruction(&mut bus, 0xEF); // SET 5 A
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.registers.a, 0b0010_0000);
             }
         }

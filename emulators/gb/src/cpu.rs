@@ -7,6 +7,7 @@ mod state;
 
 use emu::MemoryBus;
 
+use crate::cycles::TCycles;
 use crate::interrupts::{Interrupt, InterruptBus};
 use interrupts::{IME, INTERRUPT_DISPATCH_CYCLES, InterruptJumpVector};
 use registers::Registers;
@@ -54,7 +55,7 @@ impl CPU {
     /// Execute one instruction cycle, including checking for and dispatching any pending interrupts.
     ///
     /// Returns the number of cycles taken to execute the instruction or handle any interrupts.
-    pub(crate) fn step<B: MemoryBus + InterruptBus>(&mut self, bus: &mut B) -> u32 {
+    pub(crate) fn step<B: MemoryBus + InterruptBus>(&mut self, bus: &mut B) -> TCycles {
         // Halt handling needs to be done before checking for interrupts
         // since pending interrupts need to be serviced on wake up from halt.
         if let Some(cycles) = self.handle_halt(bus) {
@@ -89,7 +90,7 @@ impl CPU {
     fn try_dispatch_pending_interrupt<B: MemoryBus + InterruptBus>(
         &mut self,
         bus: &mut B,
-    ) -> Option<u32> {
+    ) -> Option<TCycles> {
         if self.ime != IME::Enabled {
             // IME is not enabled, nothing to do
             return None;
@@ -140,7 +141,7 @@ impl CPU {
     /// instruction dispatch (this includes when the CPU wakes up). Returns
     /// `Some(cycles)` if the CPU is halted and should consume the given number
     /// of cycles without dispatching an instruction.
-    fn handle_halt<I: InterruptBus>(&mut self, bus: &I) -> Option<u32> {
+    fn handle_halt<I: InterruptBus>(&mut self, bus: &I) -> Option<TCycles> {
         if !self.state.is_halted() {
             return None;
         }
@@ -590,7 +591,7 @@ mod tests {
 
                 // executes the noop instruction under PC 0x0100 since everything is zeroed out
 
-                assert_eq!(cycles, 4); // instr noop cycles
+                assert_eq!(cycles, 4.into()); // instr noop cycles
                 assert_eq!(cpu.state, CPUState::Running); // CPU is now awake
                 assert_eq!(cpu.pc, 0x0101); // PC is incremented to the next instruction after executing the noop
             }
@@ -642,7 +643,7 @@ mod tests {
 
                 let cycles = cpu.step(&mut bus);
 
-                assert_eq!(cycles, 4); // instr noop cycles
+                assert_eq!(cycles, 4.into()); // instr noop cycles
                 assert_eq!(cpu.state, CPUState::Running); // CPU is now awake
                 assert_eq!(cpu.pc, 0x0100); // PC isn't incremented due to halt bug behavior
             }
@@ -745,13 +746,13 @@ mod tests {
 
                 let cycles = cpu.step(&mut bus); // EI instruction
 
-                assert_eq!(cycles, 4); // EI instruction cycles
+                assert_eq!(cycles, 4.into()); // EI instruction cycles
                 assert_eq!(cpu.ime, IME::PendingEnable(0));
                 assert_eq!(cpu.pc, 0x0101); // PC is now at the HALT instruction
 
                 let cycles = cpu.step(&mut bus); // HALT instruction
 
-                assert_eq!(cycles, 4); // HALT instruction cycles
+                assert_eq!(cycles, 4.into()); // HALT instruction cycles
                 assert_eq!(cpu.ime, IME::Enabled); // IME is now enabled
                 assert_eq!(cpu.state, CPUState::HaltBug); // CPU is now in halt bug state
                 assert_eq!(cpu.pc, 0x0102); // PC is after the HALT instruction
@@ -766,18 +767,18 @@ mod tests {
 
                 let cycles = cpu.step(&mut bus); // Execute the noop at the VBlank interrupt vector
 
-                assert_eq!(cycles, 4); // noop instruction cycles
+                assert_eq!(cycles, 4.into()); // noop instruction cycles
                 assert_eq!(cpu.pc, 0x0041); // PC is now at the next instruction after the VBlank interrupt vector
 
                 let cycles = cpu.step(&mut bus); // Execute the RETI instruction
 
-                assert_eq!(cycles, 16); // RETI instruction cycles
+                assert_eq!(cycles, 16.into()); // RETI instruction cycles
                 assert_eq!(cpu.ime, IME::Enabled); // IME is now enabled through RETI instruction
                 assert_eq!(cpu.pc, 0x0101); // PC is now back at the HALT instruction after returning from the interrupt due to earlier halt bug
 
                 let cycles = cpu.step(&mut bus); // Execute the HALT instruction again
 
-                assert_eq!(cycles, 4); // HALT instruction cycles
+                assert_eq!(cycles, 4.into()); // HALT instruction cycles
                 assert_eq!(cpu.state, CPUState::Halted); // CPU is now properly halted
             }
 

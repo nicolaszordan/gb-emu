@@ -1,6 +1,7 @@
+use crate::cycles::TCycles;
 use crate::interrupts::Interrupt;
 
-pub const INTERRUPT_DISPATCH_CYCLES: u32 = 20;
+pub const INTERRUPT_DISPATCH_CYCLES: TCycles = TCycles::new(20);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InterruptJumpVector(u16);

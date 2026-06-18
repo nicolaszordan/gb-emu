@@ -1,6 +1,8 @@
 use crate::cpu::CPU;
 use crate::cpu::alu;
 
+use crate::cycles::TCycles;
+
 use crate::interrupts::InterruptBus;
 
 use super::condition::Condition;
@@ -37,11 +39,11 @@ impl CPU {
         bus: &mut M,
         dst: LD8DstParam,
         src: LD8SrcParam,
-    ) -> u32 {
+    ) -> TCycles {
         let value = Operand8::from(src).read(self, bus);
         Operand8::from(dst).write(self, bus, value);
 
-        0
+        TCycles::ZERO
     }
 
     /// Load 16 bits from `src` into `dst`.
@@ -66,11 +68,11 @@ impl CPU {
         bus: &mut M,
         dst: LD16DstParam,
         src: LD16SrcParam,
-    ) -> u32 {
+    ) -> TCycles {
         let value = Operand16::from(src).read(self, bus);
         Operand16::from(dst).write(self, bus, value);
 
-        0
+        TCycles::ZERO
     }
 
     /// Push `param` into the stack.
@@ -93,12 +95,16 @@ impl CPU {
     /// assert_eq!(cpu.sp, 0xFFFC); // SP is decremented by 2 (word size) and points to the pushed value
     /// assert_eq!(bus.mem[0xFFFC..=0xFFFD], [0x34, 0x12]); // note endian swap
     /// ```
-    pub(crate) fn instr_push<M: MemoryBus>(&mut self, bus: &mut M, param: R16StackParam) -> u32 {
+    pub(crate) fn instr_push<M: MemoryBus>(
+        &mut self,
+        bus: &mut M,
+        param: R16StackParam,
+    ) -> TCycles {
         let value = Operand16::from(param).read(self, bus);
 
         self.stack().push_word(bus, value);
 
-        0
+        TCycles::ZERO
     }
 
     /// Pop from stack into `param`.
@@ -127,12 +133,12 @@ impl CPU {
     /// assert_eq!(cpu.sp, 0xFFFE); // SP in incremented by 2 and is back where it began
     /// assert_eq!(cpu.registers.de_get(), 0x1234);
     /// ```
-    pub(crate) fn instr_pop<M: MemoryBus>(&mut self, bus: &mut M, param: R16StackParam) -> u32 {
+    pub(crate) fn instr_pop<M: MemoryBus>(&mut self, bus: &mut M, param: R16StackParam) -> TCycles {
         let value = self.stack().pop_word(bus);
 
         Operand16::from(param).write(self, bus, value);
 
-        0
+        TCycles::ZERO
     }
 
     /// Perform an unconditional jump according to `param`.
@@ -158,10 +164,10 @@ impl CPU {
     ///
     /// assert_eq!(cpu.pc, 0x1234); // pc is now at 0x1234 and will continue executing from there
     /// ```
-    pub(crate) fn instr_jump<M: MemoryBus>(&mut self, bus: &M, param: JumpParam) -> u32 {
+    pub(crate) fn instr_jump<M: MemoryBus>(&mut self, bus: &M, param: JumpParam) -> TCycles {
         self.pc = Operand16::from(param).read(self, bus);
 
-        0
+        TCycles::ZERO
     }
 
     /// Perform a conditional jump if `condition` is valid.
@@ -187,7 +193,7 @@ impl CPU {
     /// cpu.registers.flags.z = false;
     /// let cycles = cpu.instr_cond_jump(&mut bus, Condition::Z, JumpParam::PCE8); // Condition::Z fails
     ///
-    /// assert_eq!(cycles, 0); // no extra cycles are taken when the jump isn't performed
+    /// assert_eq!(cycles, 0.into()); // no extra cycles are taken when the jump isn't performed
     /// assert_eq!(cpu.pc, 0x0101); // pc still moves over the e8 parameter
     /// bus.write(cpu.pc, -0x11 as i8 as u8);
     ///
@@ -202,12 +208,12 @@ impl CPU {
         bus: &M,
         condition: Condition,
         param: JumpParam,
-    ) -> u32 {
+    ) -> TCycles {
         if condition.check(self.registers.flags) {
-            self.instr_jump(bus, param) + 4
+            self.instr_jump(bus, param) + TCycles::from(4)
         } else {
             let _ = Operand16::from(param).read(self, bus); // we read the param to move PC forward in case of E8/N16 params
-            0
+            TCycles::ZERO
         }
     }
 
@@ -232,7 +238,7 @@ impl CPU {
     /// assert_eq!(cpu.pc, 0x1234);
     /// assert_eq!(cpu.stack().peek_word(&bus), 0x0102); // the value pushed into the stack points to the next instruction after the call (0x0102 in this case)
     /// ```
-    pub(crate) fn instr_call<M: MemoryBus>(&mut self, bus: &mut M, param: CallParam) -> u32 {
+    pub(crate) fn instr_call<M: MemoryBus>(&mut self, bus: &mut M, param: CallParam) -> TCycles {
         let dst = Operand16::from(param).read(self, bus);
         let pc = self.pc;
 
@@ -240,7 +246,7 @@ impl CPU {
 
         self.pc = dst;
 
-        0
+        TCycles::ZERO
     }
 
     /// Perform a conditional call if `condition` is valid.
@@ -266,7 +272,7 @@ impl CPU {
     /// cpu.registers.flags.z = false;
     /// let cycles = cpu.instr_cond_call(&mut bus, Condition::Z, CallParam::N16); // Condition::Z fails
     ///
-    /// assert_eq!(cycles, 0); // no extra cycles are taken when the call isn't performed
+    /// assert_eq!(cycles, 0.into()); // no extra cycles are taken when the call isn't performed
     /// assert_eq!(cpu.pc, 0x0102); // pc still moves over the n16 parameter
     /// bus.write_word(cpu.pc, 0x2345);
     ///
@@ -282,12 +288,12 @@ impl CPU {
         bus: &mut M,
         condition: Condition,
         param: CallParam,
-    ) -> u32 {
+    ) -> TCycles {
         if condition.check(self.registers.flags) {
-            self.instr_call(bus, param) + 12
+            self.instr_call(bus, param) + 12.into()
         } else {
             let _ = Operand16::from(param).read(self, bus); // we read the param to move PC forward in case of E8/N16 params
-            0
+            TCycles::ZERO
         }
     }
 
@@ -313,12 +319,12 @@ impl CPU {
     ///
     /// assert_eq!(cpu.pc, 0x0102); // pc is back to the instruction after the call
     /// ```
-    pub(crate) fn instr_ret<M: MemoryBus>(&mut self, bus: &M) -> u32 {
+    pub(crate) fn instr_ret<M: MemoryBus>(&mut self, bus: &M) -> TCycles {
         let dst = self.stack().pop_word(bus);
 
         self.pc = dst;
 
-        0
+        TCycles::ZERO
     }
 
     /// Return from a call if `condition` is valid.
@@ -342,7 +348,7 @@ impl CPU {
     ///
     /// cpu.registers.flags.c = false;
     /// let cycles = cpu.instr_cond_ret(&mut bus, Condition::C); // Condition C fails -- no return
-    /// assert_eq!(cycles, 0); // no extra cycles as return didn't happen
+    /// assert_eq!(cycles, 0.into()); // no extra cycles as return didn't happen
     ///
     /// cpu.registers.flags.c = true;
     /// let cycles = cpu.instr_cond_ret(&mut bus, Condition::C); // Condition C is valid -- return
@@ -350,11 +356,15 @@ impl CPU {
     ///
     /// assert_eq!(cpu.pc, 0x0102); // pc is back to the instruction after the call
     /// ```
-    pub(crate) fn instr_cond_ret<M: MemoryBus>(&mut self, bus: &M, condition: Condition) -> u32 {
+    pub(crate) fn instr_cond_ret<M: MemoryBus>(
+        &mut self,
+        bus: &M,
+        condition: Condition,
+    ) -> TCycles {
         if condition.check(self.registers.flags) {
-            self.instr_ret(bus) + 12
+            self.instr_ret(bus) + TCycles::from(12)
         } else {
-            0
+            TCycles::ZERO
         }
     }
 
@@ -384,11 +394,11 @@ impl CPU {
     /// assert_eq!(cpu.pc, 0x0102); // pc is back to the instruction after the call
     /// assert!(matches!(cpu.ime, IME::Enabled)); // IME is enabled
     /// ```
-    pub(crate) fn instr_reti<M: MemoryBus>(&mut self, bus: &M) -> u32 {
+    pub(crate) fn instr_reti<M: MemoryBus>(&mut self, bus: &M) -> TCycles {
         self.instr_ret(bus);
         self.ime.enable_now();
 
-        0
+        TCycles::ZERO
     }
 
     /// Increment the 8-bit value designated by `param`.
@@ -415,13 +425,13 @@ impl CPU {
     /// assert!(cpu.registers.flags.h);
     /// assert!(!cpu.registers.flags.c);
     /// ```
-    pub(crate) fn instr_inc8<M: MemoryBus>(&mut self, bus: &mut M, param: R8Param) -> u32 {
+    pub(crate) fn instr_inc8<M: MemoryBus>(&mut self, bus: &mut M, param: R8Param) -> TCycles {
         let op = Operand8::from(param);
         let (result, flags) = alu::inc(op.read(self, bus));
         self.copy_flags::<{ flag_mask::Z | flag_mask::N | flag_mask::H }>(&flags);
         op.write(self, bus, result);
 
-        0
+        TCycles::ZERO
     }
 
     /// Decrement the 8-bit value designated by `param`.
@@ -448,13 +458,13 @@ impl CPU {
     /// assert!(cpu.registers.flags.h);
     /// assert!(!cpu.registers.flags.c);
     /// ```
-    pub(crate) fn instr_dec8<M: MemoryBus>(&mut self, bus: &mut M, param: R8Param) -> u32 {
+    pub(crate) fn instr_dec8<M: MemoryBus>(&mut self, bus: &mut M, param: R8Param) -> TCycles {
         let op = Operand8::from(param);
         let (result, flags) = alu::dec(op.read(self, bus));
         self.copy_flags::<{ flag_mask::Z | flag_mask::N | flag_mask::H }>(&flags);
         op.write(self, bus, result);
 
-        0
+        TCycles::ZERO
     }
 
     /// Increment the 16-bit value designated by `param`.
@@ -482,12 +492,12 @@ impl CPU {
     /// assert_eq!(cpu.registers.bc_get(), 0x1021);
     /// assert_eq!(cpu.registers.de_get(), 0x1100);
     /// ```
-    pub(crate) fn instr_inc16<M: MemoryBus>(&mut self, bus: &mut M, param: R16Param) -> u32 {
+    pub(crate) fn instr_inc16<M: MemoryBus>(&mut self, bus: &mut M, param: R16Param) -> TCycles {
         let op = Operand16::from(param);
         let (result, _) = alu::inc16(op.read(self, bus));
         op.write(self, bus, result);
 
-        0
+        TCycles::ZERO
     }
 
     /// Decrement the 16-bit value designated by `param`.
@@ -515,12 +525,12 @@ impl CPU {
     /// assert_eq!(cpu.registers.bc_get(), 0x1121);
     /// assert_eq!(cpu.registers.de_get(), 0xFFFF);
     /// ```
-    pub(crate) fn instr_dec16<M: MemoryBus>(&mut self, bus: &mut M, param: R16Param) -> u32 {
+    pub(crate) fn instr_dec16<M: MemoryBus>(&mut self, bus: &mut M, param: R16Param) -> TCycles {
         let op = Operand16::from(param);
         let (result, _) = alu::dec16(op.read(self, bus));
         op.write(self, bus, result);
 
-        0
+        TCycles::ZERO
     }
 
     /// Perform the given `operation` between the value in register A and the value
@@ -552,7 +562,7 @@ impl CPU {
         bus: &M,
         operation: ALUOperation,
         param: ALU8Param,
-    ) -> u32 {
+    ) -> TCycles {
         let a = self.registers.a;
         let b = Operand8::from(param).read(self, bus);
 
@@ -571,7 +581,7 @@ impl CPU {
 
         self.copy_all_flags(&flags);
 
-        0
+        TCycles::ZERO
     }
 
     /// Perform a 16-bit addition between the value in HL and the value designated by `param`.
@@ -593,13 +603,13 @@ impl CPU {
     ///
     /// assert_eq!(cpu.registers.hl_get(), 0x2234);
     /// ```
-    pub(crate) fn instr_add16<M: MemoryBus>(&mut self, bus: &M, param: R16Param) -> u32 {
+    pub(crate) fn instr_add16<M: MemoryBus>(&mut self, bus: &M, param: R16Param) -> TCycles {
         let value = Operand16::from(param).read(self, bus);
         let (result, flags) = alu::add16(self.registers.hl_get(), value);
         self.registers.hl_set(result);
         self.copy_flags::<{ flag_mask::N | flag_mask::H | flag_mask::C }>(&flags);
 
-        0
+        TCycles::ZERO
     }
 
     /// Perform a 16-bit addition between [`CPU::sp`] and next signed 8-bit value.
@@ -628,7 +638,7 @@ impl CPU {
         &mut self,
         bus: &mut M,
         dst: AddSPe8DstParam,
-    ) -> u32 {
+    ) -> TCycles {
         let e8 = Operand8::E8.read(self, bus).cast_signed();
         let sp = self.sp;
         let (result, flags) = alu::add16_signed(sp, e8);
@@ -637,7 +647,7 @@ impl CPU {
 
         self.copy_all_flags(&flags);
 
-        0
+        TCycles::ZERO
     }
 
     /// Read and execute the next byte from the extended instruction table.
@@ -668,7 +678,7 @@ impl CPU {
     /// assert_eq!(cpu.registers.c, 0b1111_0111); // BIT 3 of C has been reset
     ///
     /// ```
-    pub(crate) fn instr_prefix<M: MemoryBus>(&mut self, bus: &mut M) -> u32 {
+    pub(crate) fn instr_prefix<M: MemoryBus>(&mut self, bus: &mut M) -> TCycles {
         let opcode = self.fetch_byte(bus);
         self.execute_extended_instruction(bus, opcode)
     }
@@ -699,7 +709,7 @@ impl CPU {
         bus: &mut M,
         operation: BitShiftOperation,
         param: R8Param,
-    ) -> u32 {
+    ) -> TCycles {
         let op = Operand8::from(param);
         let value = op.read(self, bus);
 
@@ -720,7 +730,7 @@ impl CPU {
 
         self.copy_all_flags(&flags);
 
-        0
+        TCycles::ZERO
     }
 
     /// Check the status of the bit at `bit_index` in `param`.
@@ -750,7 +760,7 @@ impl CPU {
         bus: &M,
         bit_index: BitIndex,
         param: R8Param,
-    ) -> u32 {
+    ) -> TCycles {
         let op = Operand8::from(param);
         let value = op.read(self, bus);
 
@@ -758,7 +768,7 @@ impl CPU {
 
         self.copy_flags::<{ flag_mask::Z | flag_mask::N | flag_mask::H }>(&flags);
 
-        0
+        TCycles::ZERO
     }
 
     /// Reset to 0 the bit at `bit_index` in `param`.
@@ -782,7 +792,7 @@ impl CPU {
         bus: &mut M,
         bit_index: BitIndex,
         param: R8Param,
-    ) -> u32 {
+    ) -> TCycles {
         let op = Operand8::from(param);
         let value = op.read(self, bus);
 
@@ -790,7 +800,7 @@ impl CPU {
 
         op.write(self, bus, result);
 
-        0
+        TCycles::ZERO
     }
 
     /// Set to 1 the bit at `bit_index` in `param`.
@@ -814,7 +824,7 @@ impl CPU {
         bus: &mut M,
         bit_index: BitIndex,
         param: R8Param,
-    ) -> u32 {
+    ) -> TCycles {
         let op = Operand8::from(param);
         let value = op.read(self, bus);
 
@@ -822,7 +832,7 @@ impl CPU {
 
         op.write(self, bus, result);
 
-        0
+        TCycles::ZERO
     }
 
     /// Perform a bit rotation on register A.
@@ -849,7 +859,7 @@ impl CPU {
         &mut self,
         bus: &mut M, // bus is required by `instr_ext_bit_shift`'s signature but `instr_rotate_acc` only operates on register A
         operation: BitRotateOperation,
-    ) -> u32 {
+    ) -> TCycles {
         self.instr_ext_bit_shift(bus, BitShiftOperation::Rotate(operation), R8Param::A);
 
         // the RLCA, RRCA, RLA, and RRA instruction always clear the zero flag
@@ -857,7 +867,7 @@ impl CPU {
         // instructions set the zero flag according to the result.
         self.registers.flags.z = false;
 
-        0
+        TCycles::ZERO
     }
 
     /// Complement register A.
@@ -880,13 +890,13 @@ impl CPU {
     /// assert_eq!(cpu.registers.a, 0b1010_1100); // back where we started
     /// ```
     ///
-    pub(crate) const fn instr_cpl(&mut self) -> u32 {
+    pub(crate) const fn instr_cpl(&mut self) -> TCycles {
         self.registers.a = !self.registers.a;
 
         self.registers.flags.n = true;
         self.registers.flags.h = true;
 
-        0
+        TCycles::ZERO
     }
 
     /// Complement Carry Flag.
@@ -905,13 +915,13 @@ impl CPU {
     /// cpu.instr_ccf();
     /// assert!(!cpu.registers.flags.c); // back where we started
     /// ```
-    pub(crate) const fn instr_ccf(&mut self) -> u32 {
+    pub(crate) const fn instr_ccf(&mut self) -> TCycles {
         self.registers.flags.n = false;
         self.registers.flags.h = false;
 
         self.registers.flags.c = !self.registers.flags.c;
 
-        0
+        TCycles::ZERO
     }
 
     /// Set Carry Flag.
@@ -928,12 +938,12 @@ impl CPU {
     /// cpu.instr_scf();
     /// assert!(cpu.registers.flags.c);
     /// ```
-    pub(crate) const fn instr_scf(&mut self) -> u32 {
+    pub(crate) const fn instr_scf(&mut self) -> TCycles {
         self.registers.flags.n = false;
         self.registers.flags.h = false;
         self.registers.flags.c = true;
 
-        0
+        TCycles::ZERO
     }
 
     /// Enable interrupts by setting the [`CPU::ime`] flag.
@@ -961,10 +971,10 @@ impl CPU {
     ///
     /// cpu.step(&mut bus); // ime is enabled for this instruction
     /// ```
-    pub(crate) const fn instr_ei(&mut self) -> u32 {
+    pub(crate) const fn instr_ei(&mut self) -> TCycles {
         self.ime.enable();
 
-        0
+        TCycles::ZERO
     }
 
     /// Disable interrupts by clearing the [`CPU::ime`] flag.
@@ -994,10 +1004,10 @@ impl CPU {
     ///
     /// assert!(matches!(cpu.ime, IME::Disabled)); // ime is immediately disabled
     /// ```
-    pub(crate) const fn instr_di(&mut self) -> u32 {
+    pub(crate) const fn instr_di(&mut self) -> TCycles {
         self.ime.disable();
 
-        0
+        TCycles::ZERO
     }
 
     /// Halt the CPU until an interrupt occurs.
@@ -1040,17 +1050,17 @@ impl CPU {
     ///
     /// assert!(cpu.state.is_halt_bug());
     /// ```
-    pub(crate) fn instr_halt<IB: InterruptBus>(&mut self, bus: &IB) -> u32 {
+    pub(crate) fn instr_halt<IB: InterruptBus>(&mut self, bus: &IB) -> TCycles {
         if self.ime.is_disabled() && !bus.pending_interrupts().is_empty() {
             self.state.halt_bug();
         } else {
             self.state.halt();
         }
 
-        0
+        TCycles::ZERO
     }
 
-    pub(crate) fn instr_stop(&self) -> u32 {
+    pub(crate) fn instr_stop(&self) -> TCycles {
         todo!()
     }
 
@@ -1071,7 +1081,7 @@ impl CPU {
     ///
     /// assert_eq!(cpu.registers.a, 0x45);
     /// ```
-    pub(crate) const fn instr_daa(&mut self) -> u32 {
+    pub(crate) const fn instr_daa(&mut self) -> TCycles {
         let mut a = self.registers.a;
         let mut carry = self.registers.flags.c;
         let half_carry = self.registers.flags.h;
@@ -1103,7 +1113,7 @@ impl CPU {
         self.registers.flags.h = false;
         self.registers.flags.c = carry;
 
-        0
+        TCycles::ZERO
     }
 
     /// Copy chosen `alu::Flags` into `CPU::registers` flags.
@@ -1219,7 +1229,7 @@ mod tests {
 
             let cycles = cpu.instr_ld8(&mut bus, R8Param::B.into(), R8Param::C.into()); // LD B C
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
             assert_eq!(cpu.registers.b, 0xFF);
             assert_eq!(cpu.registers.c, 0xFF);
         }
@@ -1235,7 +1245,7 @@ mod tests {
 
             let cycles = cpu.instr_ld8(&mut bus, R8Param::L.into(), R8Param::IndHL.into()); // LD L [HL]
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
             assert_eq!(cpu.registers.l, 0xFF);
         }
 
@@ -1251,7 +1261,7 @@ mod tests {
 
             let cycles = cpu.instr_ld8(&mut bus, R8Param::IndHL.into(), R8Param::A.into()); // LD [HL] A
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
             assert_eq!(bus.read(0x1234), 0xFE);
         }
 
@@ -1267,7 +1277,7 @@ mod tests {
 
             let cycles = cpu.instr_ld8(&mut bus, R8Param::A.into(), LD8SrcParam::N8); // LD A N8
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
             assert_eq!(cpu.pc, 0x02);
             assert_eq!(cpu.registers.a, 0xFD);
         }
@@ -1284,7 +1294,7 @@ mod tests {
 
             let cycles = cpu.instr_ld8(&mut bus, LD8DstParam::IndN16, R8Param::A.into()); // LD [n16] A
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
             assert_eq!(cpu.pc, 0x0003);
             assert_eq!(bus.read(0x3456), 0x12);
         }
@@ -1303,7 +1313,7 @@ mod tests {
 
             let cycles = cpu.instr_ld16(&mut bus, R16Param::HL.into(), LD16SrcParam::N16); // LD HL N16
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
             assert_eq!(cpu.registers.hl_get(), 0x1234);
             assert_eq!(cpu.pc, 0x0003);
         }
@@ -1318,7 +1328,7 @@ mod tests {
 
             let cycles = cpu.instr_ld16(&mut bus, R16Param::SP.into(), LD16SrcParam::N16); // LD SP N16
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
             assert_eq!(cpu.sp, 0x5678);
             assert_eq!(cpu.pc, 0x0005);
         }
@@ -1334,7 +1344,7 @@ mod tests {
 
             let cycles = cpu.instr_ld16(&mut bus, LD16DstParam::IndN16, LD16SrcParam::SP); // LD [N16] SP
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
             assert_eq!(bus.read_word(0x9ABC), 0x5678);
             assert_eq!(cpu.pc, 0x0007);
         }
@@ -1357,7 +1367,7 @@ mod tests {
 
                 let cycles = cpu.instr_push(&mut bus, R16StackParam::BC);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.sp, 0xFFFC); // sp should have moved down by 2
                 assert_eq!(cpu.stack().peek_word(&bus), 0x1234); // front of the stack should contain our value
             }
@@ -1377,7 +1387,7 @@ mod tests {
 
                 let cycles = cpu.instr_push(&mut bus, R16StackParam::AF);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.sp, 0xFFFA); // sp should have moved down by 2 again
                 assert_eq!(bus.read(0xFFFA), 0b1010_0000); // F
                 assert_eq!(bus.read(0xFFFB), 0x56); // A
@@ -1398,7 +1408,7 @@ mod tests {
 
                 let cycles = cpu.instr_pop(&mut bus, R16StackParam::BC);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.bc_get(), 0x1234);
                 assert_eq!(cpu.sp, 0x0000); // sp should have moved up by 2
             }
@@ -1414,7 +1424,7 @@ mod tests {
 
                 let cycles = cpu.instr_pop(&mut bus, R16StackParam::AF);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.a, 0x56);
                 assert!(cpu.registers.flags.z);
                 assert!(!cpu.registers.flags.n);
@@ -1438,19 +1448,19 @@ mod tests {
 
             let cycles = cpu.instr_jump(&bus, JumpParam::N16);
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
             assert_eq!(cpu.pc, 0x5678);
 
             bus.write(cpu.pc, (-2_i8).cast_unsigned());
             let cycles = cpu.instr_jump(&bus, JumpParam::PCE8);
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
             assert_eq!(cpu.pc, 0x5677); // pc +1 -2
 
             bus.write(cpu.pc, 5);
             let cycles = cpu.instr_jump(&bus, JumpParam::PCE8);
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
             assert_eq!(cpu.pc, 0x567D); // pc +1 +5
         }
 
@@ -1464,19 +1474,19 @@ mod tests {
 
             // fail this condition -- should not jump
             let cycles = cpu.instr_cond_jump(&bus, Condition::Z, JumpParam::N16);
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
             assert_eq!(cpu.pc, 0x1236); // pc should still move forward past the argument
 
             // fail this one too -- should not jump
             let cycles = cpu.instr_cond_jump(&bus, Condition::Z, JumpParam::PCE8);
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
             assert_eq!(cpu.pc, 0x1237); // pc should still move forward past the argument
 
             cpu.registers.hl_set(0x789A);
 
             // check the opposite condition -- should jump this time
             let cycles = cpu.instr_cond_jump(&bus, Condition::NZ, JumpParam::HL);
-            assert_eq!(cycles, 4);
+            assert_eq!(cycles, 4.into());
             assert_eq!(cpu.pc, 0x789A);
         }
     }
@@ -1498,7 +1508,7 @@ mod tests {
 
                 let cycles = cpu.instr_call(&mut bus, CallParam::N16);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.pc, 0x5678); // pc should now be at the call address
                 assert_eq!(cpu.sp, 0xFFFC); // sp should have moved down by 2 to push the return address
                 assert_eq!(cpu.stack().peek_word(&bus), 0x1236); // check if the return address is the old pc after N16
@@ -1514,7 +1524,7 @@ mod tests {
 
                 let cycles = cpu.instr_call(&mut bus, CallParam::VEC(0x789A));
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.pc, 0x789A); // pc should now be at the call address
                 assert_eq!(cpu.sp, 0xFFFC); // sp should have moved down by 2 to push the return address
                 assert_eq!(cpu.stack().peek_word(&bus), 0x1234); // check if the return address is the old pc
@@ -1533,7 +1543,7 @@ mod tests {
                 // fail this condition -- should not call
                 let cycles = cpu.instr_cond_call(&mut bus, Condition::C, CallParam::N16);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.pc, 0x1236); // pc should still move forward past the argument
 
                 bus.write_word(cpu.pc, 0x789A);
@@ -1541,7 +1551,7 @@ mod tests {
                 // check the opposite condition -- should call this time
                 let cycles = cpu.instr_cond_call(&mut bus, Condition::NC, CallParam::N16);
 
-                assert_eq!(cycles, 12);
+                assert_eq!(cycles, 12.into());
                 assert_eq!(cpu.pc, 0x789A); // pc should now be at the call address
                 assert_eq!(cpu.sp, 0xFFFC); // sp should have moved down by 2 to push the return address
                 assert_eq!(cpu.stack().peek_word(&bus), 0x1238); // check if the return address is the old pc after arg
@@ -1562,7 +1572,7 @@ mod tests {
 
                 let cycles = cpu.instr_ret(&bus);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.pc, 0x5678);
                 assert_eq!(cpu.sp, 0xFFFE); // sp should be back to where it was before the fake call
             }
@@ -1581,7 +1591,7 @@ mod tests {
                 // fail this condition -- should not ret
                 let cycles = cpu.instr_cond_ret(&bus, Condition::Z);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.pc, 0x1234);
                 assert_eq!(cpu.sp, 0xFFFC); // sp should be unchanged and still containing the pc
                 assert_eq!(cpu.stack().peek_word(&bus), 0x5678);
@@ -1589,7 +1599,7 @@ mod tests {
                 // check the opposite condition -- should ret this time
                 let cycles = cpu.instr_cond_ret(&bus, Condition::NZ);
 
-                assert_eq!(cycles, 12);
+                assert_eq!(cycles, 12.into());
                 assert_eq!(cpu.pc, 0x5678);
                 assert_eq!(cpu.sp, 0xFFFE);
             }
@@ -1605,7 +1615,7 @@ mod tests {
 
                 let cycles = cpu.instr_reti(&bus);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.pc, 0x5678);
                 assert_eq!(cpu.sp, 0xFFFE); // sp should be back to where it was before the fake call
                 assert!(matches!(cpu.ime, IME::Enabled)); // ime is directly enabled after RETI, not pending enable like EI
@@ -1633,7 +1643,7 @@ mod tests {
             assert!(cpu.registers.flags.h);
             assert!(cpu.registers.flags.c);
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
         }
 
         #[test]
@@ -1654,7 +1664,7 @@ mod tests {
             assert!(cpu.registers.flags.h);
             assert!(cpu.registers.flags.c);
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
         }
 
         #[test]
@@ -1674,7 +1684,7 @@ mod tests {
             assert!(!cpu.registers.flags.h);
             assert!(!cpu.registers.flags.c);
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
         }
 
         #[test]
@@ -1695,7 +1705,7 @@ mod tests {
             assert!(!cpu.registers.flags.h);
             assert!(!cpu.registers.flags.c);
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
         }
 
         #[test]
@@ -1715,7 +1725,7 @@ mod tests {
             assert!(cpu.registers.flags.h);
             assert!(!cpu.registers.flags.c);
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
         }
 
         #[test]
@@ -1735,7 +1745,7 @@ mod tests {
             assert!(!cpu.registers.flags.h);
             assert!(!cpu.registers.flags.c);
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
         }
 
         #[test]
@@ -1757,7 +1767,7 @@ mod tests {
             assert!(!cpu.registers.flags.h);
             assert!(!cpu.registers.flags.c);
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
         }
 
         #[test]
@@ -1776,7 +1786,7 @@ mod tests {
             assert!(!cpu.registers.flags.h);
             assert!(!cpu.registers.flags.c);
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
         }
 
         #[test]
@@ -1797,7 +1807,7 @@ mod tests {
             assert!(cpu.registers.flags.h);
             assert!(cpu.registers.flags.c);
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
         }
 
         #[test]
@@ -1815,7 +1825,7 @@ mod tests {
             assert!(cpu.registers.flags.h);
             assert!(!cpu.registers.flags.c);
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
         }
 
         #[test]
@@ -1833,7 +1843,7 @@ mod tests {
             assert!(cpu.registers.flags.h);
             assert!(!cpu.registers.flags.c);
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
         }
 
         mod shift {
@@ -1847,7 +1857,7 @@ mod tests {
                 cpu.registers.a = 0b1001_0110;
                 let cycles = cpu.instr_rotate_acc(&mut bus, BitRotateOperation::RLC);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.a, 0b0010_1101);
                 assert!(!cpu.registers.flags.z);
                 assert!(!cpu.registers.flags.n);
@@ -1863,7 +1873,7 @@ mod tests {
                 cpu.registers.a = 0b1001_0110;
                 let cycles = cpu.instr_rotate_acc(&mut bus, BitRotateOperation::RRC);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.a, 0b0100_1011);
                 assert!(!cpu.registers.flags.z);
                 assert!(!cpu.registers.flags.n);
@@ -1880,7 +1890,7 @@ mod tests {
                 cpu.registers.flags.c = true;
                 let cycles = cpu.instr_rotate_acc(&mut bus, BitRotateOperation::RL);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.a, 0b0010_1101);
                 assert!(!cpu.registers.flags.z);
                 assert!(!cpu.registers.flags.n);
@@ -1897,7 +1907,7 @@ mod tests {
                 cpu.registers.flags.c = true;
                 let cycles = cpu.instr_rotate_acc(&mut bus, BitRotateOperation::RR);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.a, 0b1100_1011);
                 assert!(!cpu.registers.flags.z);
                 assert!(!cpu.registers.flags.n);
@@ -1916,7 +1926,7 @@ mod tests {
                     cpu.registers.a = 0b0000_0000;
                     let cycles = cpu.instr_rotate_acc(&mut bus, BitRotateOperation::RLC);
 
-                    assert_eq!(cycles, 0);
+                    assert_eq!(cycles, 0.into());
                     assert_eq!(cpu.registers.a, 0b0000_0000);
                     assert!(!cpu.registers.flags.z); // RLCA do not set the zero flag even if the result is zero
                 }
@@ -1929,7 +1939,7 @@ mod tests {
                     cpu.registers.a = 0b0000_0000;
                     let cycles = cpu.instr_rotate_acc(&mut bus, BitRotateOperation::RRC);
 
-                    assert_eq!(cycles, 0);
+                    assert_eq!(cycles, 0.into());
                     assert_eq!(cpu.registers.a, 0b0000_0000);
                     assert!(!cpu.registers.flags.z); // RRCA do not set the zero flag even if the result is zero
                 }
@@ -1942,7 +1952,7 @@ mod tests {
                     cpu.registers.a = 0b0000_0000;
                     let cycles = cpu.instr_rotate_acc(&mut bus, BitRotateOperation::RL);
 
-                    assert_eq!(cycles, 0);
+                    assert_eq!(cycles, 0.into());
                     assert_eq!(cpu.registers.a, 0b0000_0000);
                     assert!(!cpu.registers.flags.z); // RLA do not set the zero flag even if the result is zero
                 }
@@ -1955,7 +1965,7 @@ mod tests {
                     cpu.registers.a = 0b0000_0000;
                     let cycles = cpu.instr_rotate_acc(&mut bus, BitRotateOperation::RR);
 
-                    assert_eq!(cycles, 0);
+                    assert_eq!(cycles, 0.into());
                     assert_eq!(cpu.registers.a, 0b0000_0000);
                     assert!(!cpu.registers.flags.z); // RRA do not set the zero flag even if the result is zero
                 }
@@ -1980,7 +1990,7 @@ mod tests {
 
                 assert_eq!(cpu.registers.de_get(), 0x1100);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
             }
         }
 
@@ -1996,7 +2006,7 @@ mod tests {
                 cpu.registers.e = 0x00;
                 let cycles = cpu.instr_dec16(&mut bus, R16Param::DE);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.de_get(), 0x10FF);
             }
 
@@ -2008,7 +2018,7 @@ mod tests {
                 cpu.sp = 0x0000;
                 let cycles = cpu.instr_dec16(&mut bus, R16Param::SP);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.sp, 0xFFFF);
             }
         }
@@ -2029,7 +2039,7 @@ mod tests {
                 assert!(!cpu.registers.flags.n);
                 assert!(!cpu.registers.flags.h);
                 assert!(!cpu.registers.flags.c);
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
             }
 
             #[test]
@@ -2042,7 +2052,7 @@ mod tests {
 
                 let cycles = cpu.instr_add16(&bus, R16Param::DE);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.hl_get(), 0x6789);
             }
 
@@ -2059,7 +2069,7 @@ mod tests {
                 assert!(cpu.registers.flags.h);
                 assert!(cpu.registers.flags.c);
                 assert_eq!(cpu.registers.hl_get(), 0x6788);
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
             }
 
             mod SPpE8 {
@@ -2076,7 +2086,7 @@ mod tests {
 
                     let cycles = cpu.instr_add_spe8(&mut bus, AddSPe8DstParam::SP);
 
-                    assert_eq!(cycles, 0);
+                    assert_eq!(cycles, 0.into());
                     assert_eq!(cpu.pc, 0x0002);
                     assert_eq!(cpu.sp, 0x0000); // should wrap around to 0
                     assert!(cpu.registers.flags.h);
@@ -2095,7 +2105,7 @@ mod tests {
 
                     let cycles = cpu.instr_add_spe8(&mut bus, AddSPe8DstParam::HL);
 
-                    assert_eq!(cycles, 0);
+                    assert_eq!(cycles, 0.into());
                     assert_eq!(cpu.pc, 0x0002);
                     assert_eq!(cpu.registers.hl_get(), 0xFFF8);
                     assert_eq!(cpu.sp, 0x0000); // should remain unchanged
@@ -2123,7 +2133,7 @@ mod tests {
 
                 let cycles = cpu.instr_prefix(&mut bus);
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.registers.d, 0b0010_1100); // the RL D instruction should have been executed correctly
                 assert!(cpu.registers.flags.c); // the carry flag should have been set by the RL D instruction
                 assert_eq!(cpu.pc, 0x0002); // pc should have moved forward by 1 to read the prefix byte
@@ -2138,7 +2148,7 @@ mod tests {
 
                 let cycles = cpu.instr_prefix(&mut bus);
 
-                assert_eq!(cycles, 8);
+                assert_eq!(cycles, 8.into());
                 assert_eq!(cpu.registers.h, 0b1000_0000);
                 assert_eq!(cpu.pc, 0x0002); // pc should have moved forward by 1 to read the prefix byte
             }
@@ -2159,7 +2169,7 @@ mod tests {
                     R8Param::B,
                 );
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.b, 0b0010_1101);
                 assert!(!cpu.registers.flags.z);
                 assert!(!cpu.registers.flags.n);
@@ -2179,7 +2189,7 @@ mod tests {
                     R8Param::C,
                 );
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.c, 0b0100_1011);
                 assert!(!cpu.registers.flags.z);
                 assert!(!cpu.registers.flags.n);
@@ -2200,7 +2210,7 @@ mod tests {
                     R8Param::D,
                 );
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.d, 0b0010_1101);
                 assert!(!cpu.registers.flags.z);
                 assert!(!cpu.registers.flags.n);
@@ -2221,7 +2231,7 @@ mod tests {
                     R8Param::E,
                 );
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.e, 0b1100_1011);
                 assert!(!cpu.registers.flags.z);
                 assert!(!cpu.registers.flags.n);
@@ -2237,7 +2247,7 @@ mod tests {
                 cpu.registers.h = 0b1001_0110;
                 let cycles = cpu.instr_ext_bit_shift(&mut bus, BitShiftOperation::SLA, R8Param::H);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.h, 0b0010_1100);
                 assert!(!cpu.registers.flags.z);
                 assert!(!cpu.registers.flags.n);
@@ -2253,7 +2263,7 @@ mod tests {
                 cpu.registers.l = 0b1001_0110;
                 let cycles = cpu.instr_ext_bit_shift(&mut bus, BitShiftOperation::SRA, R8Param::L);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.l, 0b1100_1011); // bit 7 should remain unchanged
                 assert!(!cpu.registers.flags.z);
                 assert!(!cpu.registers.flags.n);
@@ -2269,7 +2279,7 @@ mod tests {
                 cpu.registers.a = 0b1001_0110;
                 let cycles = cpu.instr_ext_bit_shift(&mut bus, BitShiftOperation::SWAP, R8Param::A);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.a, 0b0110_1001);
                 assert!(!cpu.registers.flags.z);
                 assert!(!cpu.registers.flags.n);
@@ -2288,7 +2298,7 @@ mod tests {
                 let cycles =
                     cpu.instr_ext_bit_shift(&mut bus, BitShiftOperation::SRL, R8Param::IndHL);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(bus.read(0x1234), 0b0100_1011);
                 assert!(!cpu.registers.flags.z);
                 assert!(!cpu.registers.flags.n);
@@ -2312,7 +2322,7 @@ mod tests {
                     cpu.registers.b = 0b1001_0110;
                     let cycles = cpu.instr_ext_bit(&bus, 0.try_into().unwrap(), R8Param::B);
 
-                    assert_eq!(cycles, 0);
+                    assert_eq!(cycles, 0.into());
                     assert_eq!(cpu.registers.b, 0b1001_0110); // should not modify the value
                     assert!(cpu.registers.flags.z);
                     assert!(!cpu.registers.flags.n);
@@ -2330,7 +2340,7 @@ mod tests {
                     cpu.registers.c = 0b1001_0110;
                     let cycles = cpu.instr_ext_bit(&bus, 1.try_into().unwrap(), R8Param::C);
 
-                    assert_eq!(cycles, 0);
+                    assert_eq!(cycles, 0.into());
                     assert_eq!(cpu.registers.c, 0b1001_0110); // should not modify the value
                     assert!(!cpu.registers.flags.z);
                     assert!(!cpu.registers.flags.n);
@@ -2348,7 +2358,7 @@ mod tests {
                     cpu.registers.d = 0b1001_0110;
                     let cycles = cpu.instr_ext_bit(&bus, 2.try_into().unwrap(), R8Param::D);
 
-                    assert_eq!(cycles, 0);
+                    assert_eq!(cycles, 0.into());
                     assert_eq!(cpu.registers.d, 0b1001_0110); // should not modify the value
                     assert!(!cpu.registers.flags.z);
                     assert!(!cpu.registers.flags.n);
@@ -2366,7 +2376,7 @@ mod tests {
                     cpu.registers.e = 0b1001_0110;
                     let cycles = cpu.instr_ext_bit(&bus, 3.try_into().unwrap(), R8Param::E);
 
-                    assert_eq!(cycles, 0);
+                    assert_eq!(cycles, 0.into());
                     assert_eq!(cpu.registers.e, 0b1001_0110); // should not modify the value
                     assert!(cpu.registers.flags.z);
                     assert!(!cpu.registers.flags.n);
@@ -2384,7 +2394,7 @@ mod tests {
                     cpu.registers.h = 0b1001_0110;
                     let cycles = cpu.instr_ext_bit(&bus, 4.try_into().unwrap(), R8Param::H);
 
-                    assert_eq!(cycles, 0);
+                    assert_eq!(cycles, 0.into());
                     assert_eq!(cpu.registers.h, 0b1001_0110); // should not modify the value
                     assert!(!cpu.registers.flags.z);
                     assert!(!cpu.registers.flags.n);
@@ -2402,7 +2412,7 @@ mod tests {
                     cpu.registers.l = 0b1001_0110;
                     let cycles = cpu.instr_ext_bit(&bus, 5.try_into().unwrap(), R8Param::L);
 
-                    assert_eq!(cycles, 0);
+                    assert_eq!(cycles, 0.into());
                     assert_eq!(cpu.registers.l, 0b1001_0110); // should not modify the value
                     assert!(cpu.registers.flags.z);
                     assert!(!cpu.registers.flags.n);
@@ -2422,7 +2432,7 @@ mod tests {
                     bus.write(0x1234, 0b1001_0110);
                     let cycles = cpu.instr_ext_bit(&bus, 6.try_into().unwrap(), R8Param::IndHL);
 
-                    assert_eq!(cycles, 0);
+                    assert_eq!(cycles, 0.into());
                     assert_eq!(cpu.registers.h, 0x12);
                     assert_eq!(cpu.registers.l, 0x34);
                     assert_eq!(bus.read(0x1234), 0b1001_0110); // should not modify the value
@@ -2443,7 +2453,7 @@ mod tests {
                     cpu.registers.a = 0b1001_0110;
                     let cycles = cpu.instr_ext_bit(&bus, 7.try_into().unwrap(), R8Param::A);
 
-                    assert_eq!(cycles, 0);
+                    assert_eq!(cycles, 0.into());
                     assert_eq!(cpu.registers.a, 0b1001_0110); // should not modify the value
                     assert!(!cpu.registers.flags.z);
                     assert!(!cpu.registers.flags.n);
@@ -2464,7 +2474,7 @@ mod tests {
                 cpu.registers.b = 0b1001_0110;
                 let cycles = cpu.instr_ext_res(&mut bus, 0.try_into().unwrap(), R8Param::B);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.b, 0b1001_0110 & !(1 << 0));
             }
 
@@ -2476,7 +2486,7 @@ mod tests {
                 cpu.registers.c = 0b1001_0110;
                 let cycles = cpu.instr_ext_res(&mut bus, 1.try_into().unwrap(), R8Param::C);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.c, 0b1001_0110 & !(1 << 1));
             }
 
@@ -2488,7 +2498,7 @@ mod tests {
                 cpu.registers.d = 0b1001_0110;
                 let cycles = cpu.instr_ext_res(&mut bus, 2.try_into().unwrap(), R8Param::D);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.d, 0b1001_0110 & !(1 << 2));
             }
 
@@ -2500,7 +2510,7 @@ mod tests {
                 cpu.registers.e = 0b1001_0110;
                 let cycles = cpu.instr_ext_res(&mut bus, 3.try_into().unwrap(), R8Param::E);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.e, 0b1001_0110 & !(1 << 3));
             }
 
@@ -2512,7 +2522,7 @@ mod tests {
                 cpu.registers.h = 0b1001_0110;
                 let cycles = cpu.instr_ext_res(&mut bus, 4.try_into().unwrap(), R8Param::H);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.h, 0b1001_0110 & !(1 << 4));
             }
 
@@ -2524,7 +2534,7 @@ mod tests {
                 cpu.registers.l = 0b1001_0110;
                 let cycles = cpu.instr_ext_res(&mut bus, 5.try_into().unwrap(), R8Param::L);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.l, 0b1001_0110 & !(1 << 5));
             }
 
@@ -2538,7 +2548,7 @@ mod tests {
                 bus.write(0x1234, 0b1001_0110);
                 let cycles = cpu.instr_ext_res(&mut bus, 7.try_into().unwrap(), R8Param::IndHL);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(bus.read(0x1234), 0b1001_0110 & !(1 << 7));
             }
         }
@@ -2554,7 +2564,7 @@ mod tests {
                 cpu.registers.b = 0b1001_0110;
                 let cycles = cpu.instr_ext_set(&mut bus, 0.try_into().unwrap(), R8Param::B);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.b, 0b1001_0110 | (1 << 0));
             }
 
@@ -2566,7 +2576,7 @@ mod tests {
                 cpu.registers.c = 0b1001_0110;
                 let cycles = cpu.instr_ext_set(&mut bus, 1.try_into().unwrap(), R8Param::C);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.c, 0b1001_0110 | (1 << 1));
             }
 
@@ -2578,7 +2588,7 @@ mod tests {
                 cpu.registers.d = 0b1001_0110;
                 let cycles = cpu.instr_ext_set(&mut bus, 2.try_into().unwrap(), R8Param::D);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.d, 0b1001_0110 | (1 << 2));
             }
 
@@ -2590,7 +2600,7 @@ mod tests {
                 cpu.registers.e = 0b1001_0110;
                 let cycles = cpu.instr_ext_set(&mut bus, 3.try_into().unwrap(), R8Param::E);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.e, 0b1001_0110 | (1 << 3));
             }
 
@@ -2602,7 +2612,7 @@ mod tests {
                 cpu.registers.h = 0b1001_0110;
                 let cycles = cpu.instr_ext_set(&mut bus, 4.try_into().unwrap(), R8Param::H);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.h, 0b1001_0110 | (1 << 4));
             }
 
@@ -2614,7 +2624,7 @@ mod tests {
                 cpu.registers.l = 0b1001_0110;
                 let cycles = cpu.instr_ext_set(&mut bus, 5.try_into().unwrap(), R8Param::L);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(cpu.registers.l, 0b1001_0110 | (1 << 5));
             }
 
@@ -2628,7 +2638,7 @@ mod tests {
                 bus.write(0x1234, 0b1001_0110);
                 let cycles = cpu.instr_ext_set(&mut bus, 7.try_into().unwrap(), R8Param::IndHL);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert_eq!(bus.read(0x1234), 0b1001_0110 | (1 << 7));
             }
         }
@@ -2644,7 +2654,7 @@ mod tests {
             cpu.registers.a = 0b1001_0110;
             let cycles = cpu.instr_cpl();
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
             assert_eq!(cpu.registers.a, 0b0110_1001);
             assert!(!cpu.registers.flags.z);
             assert!(cpu.registers.flags.n);
@@ -2662,14 +2672,14 @@ mod tests {
 
             let cycles = cpu.instr_ccf();
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
             assert!(!cpu.registers.flags.n);
             assert!(!cpu.registers.flags.h);
             assert!(!cpu.registers.flags.c);
 
             let cycles = cpu.instr_ccf();
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
             assert!(!cpu.registers.flags.n);
             assert!(!cpu.registers.flags.h);
             assert!(cpu.registers.flags.c);
@@ -2685,7 +2695,7 @@ mod tests {
 
             let cycles = cpu.instr_scf();
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
             assert!(!cpu.registers.flags.n);
             assert!(!cpu.registers.flags.h);
             assert!(cpu.registers.flags.c);
@@ -2705,7 +2715,7 @@ mod tests {
 
                 let cycles = cpu.instr_halt(&bus);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert!(matches!(cpu.state, CPUState::Halted));
             }
 
@@ -2716,7 +2726,7 @@ mod tests {
 
                 let cycles = cpu.instr_halt(&bus);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert!(matches!(cpu.state, CPUState::Halted));
             }
 
@@ -2731,7 +2741,7 @@ mod tests {
 
                 let cycles = cpu.instr_halt(&bus);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert!(matches!(cpu.state, CPUState::Halted));
             }
 
@@ -2744,7 +2754,7 @@ mod tests {
 
                 let cycles = cpu.instr_halt(&bus);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert!(matches!(cpu.state, CPUState::Halted)); // this doesn't cause a halt bug because the interrupt in not enabled
             }
 
@@ -2755,7 +2765,7 @@ mod tests {
 
                 let cycles = cpu.instr_halt(&bus);
 
-                assert_eq!(cycles, 0);
+                assert_eq!(cycles, 0.into());
                 assert!(matches!(cpu.state, CPUState::HaltBug));
             }
         }
@@ -2772,7 +2782,7 @@ mod tests {
 
             let cycles = cpu.instr_ei();
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
             assert!(matches!(cpu.ime, IME::PendingEnable(1)));
         }
 
@@ -2784,7 +2794,7 @@ mod tests {
 
             let cycles = cpu.instr_di();
 
-            assert_eq!(cycles, 0);
+            assert_eq!(cycles, 0.into());
             assert!(matches!(cpu.ime, IME::Disabled));
         }
 

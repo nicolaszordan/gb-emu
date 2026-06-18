@@ -59,6 +59,8 @@ pub fn generate_code(input: &str) -> Result<String, Box<dyn Error>> {
     output.push_str("// Auto-generated file - DO NOT EDIT\n");
     output.push_str("// Use `tools/instruction-codegen` to edit\n");
 
+    output.push_str("\nuse crate::cycles::TCycles;\n");
+
     //output.push_str("\n/// Auto-generated trait containing all GameBoy CPU instructions\n");
     //output.push_str(&generate_trait(&instructions));
     output.push_str("\n/// Metadata for a single CPU instruction\n");
@@ -158,7 +160,7 @@ fn generate_instruction_metadata_struct() -> String {
     output.push_str("    pub mnemonic: &'static str,\n");
     output.push_str("    pub opcode: u8,\n");
     output.push_str("    pub bytes: u8,\n");
-    output.push_str("    pub cycles: u8,\n");
+    output.push_str("    pub cycles: TCycles,\n");
     //output.push_str(&format!("    pub execute: fn(&mut dyn {}),\n", TRAIT_NAME));
     output.push_str("}\n");
 
@@ -209,7 +211,7 @@ fn generate_instruction_table_entry(instr: &Instruction, opcode: u8) -> String {
     let _ = writeln!(&mut output, "        mnemonic: \"{}\",", instr.mnemonic);
     let _ = writeln!(&mut output, "        opcode: 0x{opcode:02X},");
     let _ = writeln!(&mut output, "        bytes: {},", instr.bytes);
-    let _ = writeln!(&mut output, "        cycles: {cycles},");
+    let _ = writeln!(&mut output, "        cycles: TCycles::new({cycles}),");
     output.push_str("    },\n");
 
     output
@@ -417,7 +419,7 @@ pub trait InstructionHandler {
         mnemonic: "LD",
         opcode: 0x01,
         bytes: 3,
-        cycles: 12,
+        cycles: TCycles::new(12),
     },
 "#;
 
@@ -484,13 +486,13 @@ pub const TEST_TABLE: [InstructionMeta; 2] = [
         mnemonic: "NOP",
         opcode: 0x00,
         bytes: 1,
-        cycles: 4,
+        cycles: TCycles::new(4),
     },
     InstructionMeta {
         mnemonic: "LD",
         opcode: 0x01,
         bytes: 3,
-        cycles: 12,
+        cycles: TCycles::new(12),
     },
 ];
 "#;
