@@ -2,6 +2,8 @@ mod interrupts;
 
 use emu::MemoryBus;
 
+use crate::cycles::TCycles;
+
 use crate::interrupts::{Interrupt, InterruptBus, InterruptFlags};
 use interrupts::{IE_ADDRESS, IF_ADDRESS, InterruptRegisters};
 
@@ -18,7 +20,7 @@ impl MotherBoard {
     }
 
     #[allow(clippy::unused_self, clippy::needless_pass_by_ref_mut)] // suppressing these lints while we wait for the components to be implemented
-    pub const fn step(&mut self, _cycles: u32) {
+    pub const fn step(&mut self, _cycles: TCycles) {
         // self.ppu.step(cycles);
         // self.apu.step(cycles);
         // self.timer.step(cycles);
