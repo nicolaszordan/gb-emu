@@ -210,7 +210,7 @@ impl CPU {
         param: JumpParam,
     ) -> TCycles {
         if condition.check(self.registers.flags) {
-            self.instr_jump(bus, param) + TCycles::from(4)
+            self.instr_jump(bus, param) + TCycles::new(4)
         } else {
             let _ = Operand16::from(param).read(self, bus); // we read the param to move PC forward in case of E8/N16 params
             TCycles::ZERO
@@ -290,7 +290,7 @@ impl CPU {
         param: CallParam,
     ) -> TCycles {
         if condition.check(self.registers.flags) {
-            self.instr_call(bus, param) + 12.into()
+            self.instr_call(bus, param) + TCycles::new(12)
         } else {
             let _ = Operand16::from(param).read(self, bus); // we read the param to move PC forward in case of E8/N16 params
             TCycles::ZERO
@@ -362,7 +362,7 @@ impl CPU {
         condition: Condition,
     ) -> TCycles {
         if condition.check(self.registers.flags) {
-            self.instr_ret(bus) + TCycles::from(12)
+            self.instr_ret(bus) + TCycles::new(12)
         } else {
             TCycles::ZERO
         }
