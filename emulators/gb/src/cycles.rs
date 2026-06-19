@@ -15,7 +15,7 @@ pub struct TCycles(u32);
 impl TCycles {
     pub const ZERO: Self = Self(0);
 
-    /// Create a new TCycles with `cycles`.
+    /// Create a new `TCycles` with `cycles`.
     pub const fn new(cycles: u32) -> Self {
         Self(cycles)
     }
