@@ -55,7 +55,10 @@ impl CPU {
             0x10 => self.instr_stop(),
             0x18 => self.instr_jump(bus, JumpParam::PCE8),
             0x20 | 0x28 | 0x30 | 0x38 => {
-                self.instr_cond_jump(bus, Condition::from(opcode >> 3), JumpParam::PCE8)
+                let condition = Condition::try_from((opcode >> 3) & 0b11)
+                    .expect("opcode's value should be contained between 0 and 3");
+
+                self.instr_cond_jump(bus, condition, JumpParam::PCE8)
             }
             0x27 => self.instr_daa(),
             0x2F => self.instr_cpl(),
@@ -72,14 +75,25 @@ impl CPU {
                 ALUOperation::from(opcode >> 3),
                 R8Param::from(opcode).into(),
             ),
-            0xC0 | 0xC8 | 0xD0 | 0xD8 => self.instr_cond_ret(bus, Condition::from(opcode >> 3)),
+            0xC0 | 0xC8 | 0xD0 | 0xD8 => {
+                let condition = Condition::try_from((opcode >> 3) & 0b11)
+                    .expect("opcode's value should be contained between 0 and 3");
+
+                self.instr_cond_ret(bus, condition)
+            }
             0xC1 | 0xD1 | 0xE1 | 0xF1 => self.instr_pop(bus, R16StackParam::from(opcode >> 4)),
             0xC2 | 0xCA | 0xD2 | 0xDA => {
-                self.instr_cond_jump(bus, Condition::from(opcode >> 3), JumpParam::N16)
+                let condition = Condition::try_from((opcode >> 3) & 0b11)
+                    .expect("opcode's value should be contained between 0 and 3");
+
+                self.instr_cond_jump(bus, condition, JumpParam::N16)
             }
             0xC3 => self.instr_jump(bus, JumpParam::N16),
             0xC4 | 0xCC | 0xD4 | 0xDC => {
-                self.instr_cond_call(bus, Condition::from(opcode >> 3), CallParam::N16)
+                let condition = Condition::try_from((opcode >> 3) & 0b11)
+                    .expect("opcode's value should be contained between 0 and 3");
+
+                self.instr_cond_call(bus, condition, CallParam::N16)
             }
             0xC5 | 0xD5 | 0xE5 | 0xF5 => self.instr_push(bus, R16StackParam::from(opcode >> 4)),
             0xC6 | 0xCE | 0xD6 | 0xDE | 0xE6 | 0xEE | 0xF6 | 0xFE => {

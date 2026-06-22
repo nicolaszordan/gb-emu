@@ -14,3 +14,6 @@ pub mod operand;
 // we're suppressing this lint to keep the naming consistent with the pan docs
 #[allow(clippy::upper_case_acronyms)]
 pub mod parameter;
+
+#[derive(Debug)]
+pub struct OpcodeExtractionError; // NOTE: not convinced if this should stay here or move to somewhere else
