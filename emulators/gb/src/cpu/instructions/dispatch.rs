@@ -13,112 +13,200 @@ use emu::MemoryBus;
 impl CPU {
     /// Dispatch and execute an instruction from the main instruction table
     /// designated by `opcode`.
+    #[allow(clippy::too_many_lines)] // matching all values from an u8 is bound to take more than 100 lines
     pub(crate) fn execute_instruction<B: MemoryBus + InterruptBus>(
         &mut self,
         bus: &mut B,
         opcode: u8,
     ) -> TCycles {
         let additional_cycles = match opcode {
-            0x00 => {
-                // NOP
-                TCycles::ZERO
-            }
-            0x01 | 0x11 | 0x21 | 0x31 => {
-                self.instr_ld16(bus, R16Param::from(opcode >> 4).into(), LD16SrcParam::N16)
-            }
-            0x02 | 0x12 | 0x22 | 0x32 => self.instr_ld8(
-                bus,
-                R16MemParam::from(opcode >> 4).into(),
-                R8Param::A.into(),
-            ),
-            0x03 | 0x13 | 0x23 | 0x33 => self.instr_inc16(bus, R16Param::from(opcode >> 4)),
-            0x04 | 0x0C | 0x14 | 0x1C | 0x24 | 0x2C | 0x34 | 0x3C => {
-                self.instr_inc8(bus, R8Param::from(opcode >> 3))
-            }
-            0x05 | 0x0D | 0x15 | 0x1D | 0x25 | 0x2D | 0x35 | 0x3D => {
-                self.instr_dec8(bus, R8Param::from(opcode >> 3))
-            }
-            0x06 | 0x0E | 0x16 | 0x1E | 0x26 | 0x2E | 0x36 | 0x3E => {
-                self.instr_ld8(bus, R8Param::from(opcode >> 3).into(), LD8SrcParam::N8)
-            }
-            0x07 | 0x0F | 0x17 | 0x1F => {
-                self.instr_rotate_acc(bus, BitRotateOperation::from(opcode >> 3))
-            }
-            0x08 => self.instr_ld16(bus, LD16DstParam::IndN16, LD16SrcParam::SP),
-            0x09 | 0x19 | 0x29 | 0x39 => self.instr_add16(bus, R16Param::from(opcode >> 4)),
-            0x0A | 0x1A | 0x2A | 0x3A => self.instr_ld8(
-                bus,
-                R8Param::A.into(),
-                R16MemParam::from(opcode >> 4).into(),
-            ),
-            0x0B | 0x1B | 0x2B | 0x3B => self.instr_dec16(bus, R16Param::from(opcode >> 4)),
-            0x10 => self.instr_stop(),
-            0x18 => self.instr_jump(bus, JumpParam::PCE8),
-            0x20 | 0x28 | 0x30 | 0x38 => {
-                let condition = Condition::try_from((opcode >> 3) & 0b11)
-                    .expect("opcode's value should be contained between 0 and 3");
+            // NOP
+            0x00 => TCycles::ZERO,
 
-                self.instr_cond_jump(bus, condition, JumpParam::PCE8)
-            }
+            // LD R16 N16
+            0x01 => self.instr_ld16(bus, R16Param::BC.into(), LD16SrcParam::N16),
+            0x11 => self.instr_ld16(bus, R16Param::DE.into(), LD16SrcParam::N16),
+            0x21 => self.instr_ld16(bus, R16Param::HL.into(), LD16SrcParam::N16),
+            0x31 => self.instr_ld16(bus, R16Param::SP.into(), LD16SrcParam::N16),
+
+            // LD *R16 A
+            0x02 => self.instr_ld8(bus, R16MemParam::IndBC.into(), R8Param::A.into()),
+            0x12 => self.instr_ld8(bus, R16MemParam::IndDE.into(), R8Param::A.into()),
+            0x22 => self.instr_ld8(bus, R16MemParam::IndHLi.into(), R8Param::A.into()),
+            0x32 => self.instr_ld8(bus, R16MemParam::IndHLd.into(), R8Param::A.into()),
+
+            // LD A *R16
+            0x0A => self.instr_ld8(bus, R8Param::A.into(), R16MemParam::IndBC.into()),
+            0x1A => self.instr_ld8(bus, R8Param::A.into(), R16MemParam::IndDE.into()),
+            0x2A => self.instr_ld8(bus, R8Param::A.into(), R16MemParam::IndHLi.into()),
+            0x3A => self.instr_ld8(bus, R8Param::A.into(), R16MemParam::IndHLd.into()),
+
+            // INC R16
+            0x03 => self.instr_inc16(bus, R16Param::BC),
+            0x13 => self.instr_inc16(bus, R16Param::DE),
+            0x23 => self.instr_inc16(bus, R16Param::HL),
+            0x33 => self.instr_inc16(bus, R16Param::SP),
+
+            // DEC R16
+            0x0B => self.instr_dec16(bus, R16Param::BC),
+            0x1B => self.instr_dec16(bus, R16Param::DE),
+            0x2B => self.instr_dec16(bus, R16Param::HL),
+            0x3B => self.instr_dec16(bus, R16Param::SP),
+
+            // INC R8
+            0x04 => self.instr_inc8(bus, R8Param::B),
+            0x0C => self.instr_inc8(bus, R8Param::C),
+            0x14 => self.instr_inc8(bus, R8Param::D),
+            0x1C => self.instr_inc8(bus, R8Param::E),
+            0x24 => self.instr_inc8(bus, R8Param::H),
+            0x2C => self.instr_inc8(bus, R8Param::L),
+            0x34 => self.instr_inc8(bus, R8Param::IndHL),
+            0x3C => self.instr_inc8(bus, R8Param::A),
+
+            // DEC R8
+            0x05 => self.instr_dec8(bus, R8Param::B),
+            0x0D => self.instr_dec8(bus, R8Param::C),
+            0x15 => self.instr_dec8(bus, R8Param::D),
+            0x1D => self.instr_dec8(bus, R8Param::E),
+            0x25 => self.instr_dec8(bus, R8Param::H),
+            0x2D => self.instr_dec8(bus, R8Param::L),
+            0x35 => self.instr_dec8(bus, R8Param::IndHL),
+            0x3D => self.instr_dec8(bus, R8Param::A),
+
+            // LD R8 N8
+            0x06 => self.instr_ld8(bus, R8Param::B.into(), LD8SrcParam::N8),
+            0x0E => self.instr_ld8(bus, R8Param::C.into(), LD8SrcParam::N8),
+            0x16 => self.instr_ld8(bus, R8Param::D.into(), LD8SrcParam::N8),
+            0x1E => self.instr_ld8(bus, R8Param::E.into(), LD8SrcParam::N8),
+            0x26 => self.instr_ld8(bus, R8Param::H.into(), LD8SrcParam::N8),
+            0x2E => self.instr_ld8(bus, R8Param::L.into(), LD8SrcParam::N8),
+            0x36 => self.instr_ld8(bus, R8Param::IndHL.into(), LD8SrcParam::N8),
+            0x3E => self.instr_ld8(bus, R8Param::A.into(), LD8SrcParam::N8),
+
+            // ROTATE A
+            0x07 => self.instr_rotate_acc(bus, BitRotateOperation::RLC),
+            0x0F => self.instr_rotate_acc(bus, BitRotateOperation::RRC),
+            0x17 => self.instr_rotate_acc(bus, BitRotateOperation::RL),
+            0x1F => self.instr_rotate_acc(bus, BitRotateOperation::RR),
+
+            0x08 => self.instr_ld16(bus, LD16DstParam::IndN16, LD16SrcParam::SP),
+
+            // ADD R16
+            0x09 => self.instr_add16(bus, R16Param::BC),
+            0x19 => self.instr_add16(bus, R16Param::DE),
+            0x29 => self.instr_add16(bus, R16Param::HL),
+            0x39 => self.instr_add16(bus, R16Param::SP),
+
+            0x10 => self.instr_stop(),
+
+            // JMP COND? PC+E8
+            0x18 => self.instr_jump(bus, JumpParam::PCE8),
+            0x20 => self.instr_cond_jump(bus, Condition::NZ, JumpParam::PCE8),
+            0x28 => self.instr_cond_jump(bus, Condition::Z, JumpParam::PCE8),
+            0x30 => self.instr_cond_jump(bus, Condition::NC, JumpParam::PCE8),
+            0x38 => self.instr_cond_jump(bus, Condition::C, JumpParam::PCE8),
+
             0x27 => self.instr_daa(),
             0x2F => self.instr_cpl(),
             0x37 => self.instr_scf(),
             0x3F => self.instr_ccf(),
+
             0x76 => self.instr_halt(bus),
+
+            // LD R8 R8
+            // NOTE: pretty big block (64instr): should we split this block like we did the others?
+            // NOTE: 0x76 halt needs to be before this block as it is contained in the range 0x40..=0x7F
             0x40..=0x7F => self.instr_ld8(
                 bus,
-                R8Param::from(opcode >> 3).into(),
-                R8Param::from(opcode).into(),
+                R8Param::try_from((opcode >> 3) & 0b111)
+                    .expect("opcode's value should be contained between 0 and 3")
+                    .into(),
+                R8Param::try_from(opcode & 0b111)
+                    .expect("opcode's value should be contained between 0 and 3")
+                    .into(),
             ),
+
+            // ALU OP R8
+            // NOTE: pretty big block (64instr): should we split this block like we did the others?
             0x80..=0xBF => self.instr_alu(
                 bus,
-                ALUOperation::from(opcode >> 3),
-                R8Param::from(opcode).into(),
+                ALUOperation::try_from((opcode >> 3) & 0b111)
+                    .expect("opcode's value should be contained between 0 and 3"),
+                R8Param::try_from(opcode & 0b111)
+                    .expect("opcode's value should be contained between 0 and 3")
+                    .into(),
             ),
-            0xC0 | 0xC8 | 0xD0 | 0xD8 => {
-                let condition = Condition::try_from((opcode >> 3) & 0b11)
-                    .expect("opcode's value should be contained between 0 and 3");
 
-                self.instr_cond_ret(bus, condition)
-            }
-            0xC1 | 0xD1 | 0xE1 | 0xF1 => self.instr_pop(bus, R16StackParam::from(opcode >> 4)),
-            0xC2 | 0xCA | 0xD2 | 0xDA => {
-                let condition = Condition::try_from((opcode >> 3) & 0b11)
-                    .expect("opcode's value should be contained between 0 and 3");
+            // RET COND?
+            0xC9 => self.instr_ret(bus),
+            0xC0 => self.instr_cond_ret(bus, Condition::NZ),
+            0xC8 => self.instr_cond_ret(bus, Condition::Z),
+            0xD0 => self.instr_cond_ret(bus, Condition::NC),
+            0xD8 => self.instr_cond_ret(bus, Condition::C),
 
-                self.instr_cond_jump(bus, condition, JumpParam::N16)
-            }
+            // POP R16
+            0xC1 => self.instr_pop(bus, R16StackParam::BC),
+            0xD1 => self.instr_pop(bus, R16StackParam::DE),
+            0xE1 => self.instr_pop(bus, R16StackParam::HL),
+            0xF1 => self.instr_pop(bus, R16StackParam::AF),
+
+            // JMP COND? N16
             0xC3 => self.instr_jump(bus, JumpParam::N16),
-            0xC4 | 0xCC | 0xD4 | 0xDC => {
-                let condition = Condition::try_from((opcode >> 3) & 0b11)
-                    .expect("opcode's value should be contained between 0 and 3");
+            0xC2 => self.instr_cond_jump(bus, Condition::NZ, JumpParam::N16),
+            0xCA => self.instr_cond_jump(bus, Condition::Z, JumpParam::N16),
+            0xD2 => self.instr_cond_jump(bus, Condition::NC, JumpParam::N16),
+            0xDA => self.instr_cond_jump(bus, Condition::C, JumpParam::N16),
 
-                self.instr_cond_call(bus, condition, CallParam::N16)
-            }
-            0xC5 | 0xD5 | 0xE5 | 0xF5 => self.instr_push(bus, R16StackParam::from(opcode >> 4)),
-            0xC6 | 0xCE | 0xD6 | 0xDE | 0xE6 | 0xEE | 0xF6 | 0xFE => {
-                self.instr_alu(bus, ALUOperation::from(opcode >> 3), ALU8Param::N8)
-            }
+            // CALL COND? N16
+            0xCD => self.instr_call(bus, CallParam::N16),
+            0xC4 => self.instr_cond_call(bus, Condition::NZ, CallParam::N16),
+            0xCC => self.instr_cond_call(bus, Condition::Z, CallParam::N16),
+            0xD4 => self.instr_cond_call(bus, Condition::NC, CallParam::N16),
+            0xDC => self.instr_cond_call(bus, Condition::C, CallParam::N16),
+
+            // PUSH R16
+            0xC5 => self.instr_push(bus, R16StackParam::BC),
+            0xD5 => self.instr_push(bus, R16StackParam::DE),
+            0xE5 => self.instr_push(bus, R16StackParam::HL),
+            0xF5 => self.instr_push(bus, R16StackParam::AF),
+
+            // ALU OP N8
+            0xC6 | 0xCE | 0xD6 | 0xDE | 0xE6 | 0xEE | 0xF6 | 0xFE => self.instr_alu(
+                bus,
+                ALUOperation::try_from((opcode >> 3) & 0b111)
+                    .expect("opcode's value should be contained between 0 and 3"),
+                ALU8Param::N8,
+            ),
+
+            // CALL VEC
             0xC7 | 0xCF | 0xD7 | 0xDF | 0xE7 | 0xEF | 0xF7 | 0xFF => {
                 self.instr_call(bus, CallParam::VEC(u16::from(opcode) & 0b0011_1000))
             }
-            0xC9 => self.instr_ret(bus),
-            0xCB => self.instr_prefix(bus),
-            0xCD => self.instr_call(bus, CallParam::N16),
-            0xD9 => self.instr_reti(bus),
+
+            // LD HMEM A
             0xE0 => self.instr_ld8(bus, LD8DstParam::IndHighMemA8, R8Param::A.into()),
             0xE2 => self.instr_ld8(bus, LD8DstParam::IndHighMemC, R8Param::A.into()),
-            0xE8 => self.instr_add_spe8(bus, AddSPe8DstParam::SP),
-            0xE9 => self.instr_jump(bus, JumpParam::HL),
-            0xEA => self.instr_ld8(bus, LD8DstParam::IndN16, R8Param::A.into()),
             0xF0 => self.instr_ld8(bus, R8Param::A.into(), LD8SrcParam::IndHighMemA8),
             0xF2 => self.instr_ld8(bus, R8Param::A.into(), LD8SrcParam::IndHighMemC),
-            0xF3 => self.instr_di(),
-            0xF8 => self.instr_add_spe8(bus, AddSPe8DstParam::HL),
-            0xF9 => self.instr_ld16(bus, R16Param::SP.into(), LD16SrcParam::HL),
+
+            // LD *N16 A
+            0xEA => self.instr_ld8(bus, LD8DstParam::IndN16, R8Param::A.into()),
             0xFA => self.instr_ld8(bus, R8Param::A.into(), LD8SrcParam::IndN16),
+
+            // EI/DI
+            0xF3 => self.instr_di(),
             0xFB => self.instr_ei(),
 
+            // ADD SP E8
+            0xE8 => self.instr_add_spe8(bus, AddSPe8DstParam::SP),
+            0xF8 => self.instr_add_spe8(bus, AddSPe8DstParam::HL),
+
+            0xCB => self.instr_prefix(bus),
+            0xD9 => self.instr_reti(bus),
+            0xE9 => self.instr_jump(bus, JumpParam::HL),
+            0xF9 => self.instr_ld16(bus, R16Param::SP.into(), LD16SrcParam::HL),
+
+            // INVALID
             0xD3 | 0xE3 | 0xE4 | 0xF4 | 0xDB | 0xEB | 0xEC | 0xFC | 0xDD | 0xED | 0xFD => {
                 // TODO: this  panic! will be changed when we implement CPU states to enter a "bricked" state instead of panicking.
                 panic!("Invalid opcode: 0x{opcode:02X}");
@@ -139,26 +227,31 @@ impl CPU {
         match opcode {
             0x00..=0x3F => self.instr_ext_bit_shift(
                 mem_bus,
-                BitShiftOperation::from(opcode >> 3),
-                R8Param::from(opcode),
+                BitShiftOperation::try_from((opcode >> 3) & 0b111)
+                    .expect("opcode's value should be contained between 0 and 3"),
+                R8Param::try_from(opcode & 0b111)
+                    .expect("opcode's value should be contained between 0 and 3"),
             ),
 
             0x40..=0x7F => self.instr_ext_bit(
                 mem_bus,
                 BitIndex::from_low_bits(opcode >> 3),
-                R8Param::from(opcode),
+                R8Param::try_from(opcode & 0b111)
+                    .expect("opcode's value should be contained between 0 and 3"),
             ),
 
             0x80..=0xBF => self.instr_ext_res(
                 mem_bus,
                 BitIndex::from_low_bits(opcode >> 3),
-                R8Param::from(opcode),
+                R8Param::try_from(opcode & 0b111)
+                    .expect("opcode's value should be contained between 0 and 3"),
             ),
 
             0xC0..=0xFF => self.instr_ext_set(
                 mem_bus,
                 BitIndex::from_low_bits(opcode >> 3),
-                R8Param::from(opcode),
+                R8Param::try_from(opcode & 0b111)
+                    .expect("opcode's value should be contained between 0 and 3"),
             ),
         };
 

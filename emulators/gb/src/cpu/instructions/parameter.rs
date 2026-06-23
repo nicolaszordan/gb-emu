@@ -1,3 +1,7 @@
+use super::OpcodeExtractionError;
+
+pub use emu::BitIndex;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum R8Param {
     /// Designate a parameter using CPU's `B` register
@@ -26,10 +30,12 @@ pub enum R8Param {
     A,
 }
 
-impl From<u8> for R8Param {
-    /// Create a [`R8Param`] from an [`u8`].
+impl TryFrom<u8> for R8Param {
+    type Error = OpcodeExtractionError;
+
+    /// Try to create a [`R8Param`] from an [`u8`].
     ///
-    /// Only the last 3 bits from `value` are checked and therefore the values
+    /// Values are expected to be only the last 3 bits from `value` are checked and therefore the values
     /// go from 0 to 7.
     ///
     /// Mapping is as follow:
@@ -41,17 +47,17 @@ impl From<u8> for R8Param {
     /// - `5` => [`R8Param::L`]
     /// - `6` => [`R8Param::IndHL`]
     /// - `7` => [`R8Param::A`]
-    fn from(value: u8) -> Self {
-        match value & 0b111 {
-            0 => Self::B,
-            1 => Self::C,
-            2 => Self::D,
-            3 => Self::E,
-            4 => Self::H,
-            5 => Self::L,
-            6 => Self::IndHL,
-            7 => Self::A,
-            _ => unreachable!("all values after mask are mapped"),
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::B),
+            1 => Ok(Self::C),
+            2 => Ok(Self::D),
+            3 => Ok(Self::E),
+            4 => Ok(Self::H),
+            5 => Ok(Self::L),
+            6 => Ok(Self::IndHL),
+            7 => Ok(Self::A),
+            _ => Err(OpcodeExtractionError),
         }
     }
 }
@@ -64,36 +70,12 @@ pub enum R16Param {
     SP,
 }
 
-impl From<u8> for R16Param {
-    fn from(value: u8) -> Self {
-        match value & 0b11 {
-            0 => Self::BC,
-            1 => Self::DE,
-            2 => Self::HL,
-            3 => Self::SP,
-            _ => unreachable!("all values after mask are mapped"),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum R16StackParam {
     BC,
     DE,
     HL,
     AF,
-}
-
-impl From<u8> for R16StackParam {
-    fn from(value: u8) -> Self {
-        match value & 0b11 {
-            0 => Self::BC,
-            1 => Self::DE,
-            2 => Self::HL,
-            3 => Self::AF,
-            _ => unreachable!("all values after mask are mapped"),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -103,20 +85,6 @@ pub enum R16MemParam {
     IndHLi,
     IndHLd,
 }
-
-impl From<u8> for R16MemParam {
-    fn from(value: u8) -> Self {
-        match value & 0b11 {
-            0 => Self::IndBC,
-            1 => Self::IndDE,
-            2 => Self::IndHLi,
-            3 => Self::IndHLd,
-            _ => unreachable!("all values after mask are mapped"),
-        }
-    }
-}
-
-pub use emu::BitIndex;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LD8SrcParam {
@@ -237,7 +205,9 @@ pub enum ALUOperation {
     CP,
 }
 
-impl From<u8> for ALUOperation {
+impl TryFrom<u8> for ALUOperation {
+    type Error = OpcodeExtractionError;
+
     /// Create an [`ALUOperation`] from an [`u8`]
     ///
     /// ALU main instructions calls can be deduced from the opcode and are
@@ -253,17 +223,17 @@ impl From<u8> for ALUOperation {
     /// - `6` => [`ALUOperation::OR`]
     /// - `7` => [`ALUOperation::CP`]
     ///
-    fn from(value: u8) -> Self {
-        match value & 0b111 {
-            0 => Self::ADD,
-            1 => Self::ADC,
-            2 => Self::SUB,
-            3 => Self::SBC,
-            4 => Self::AND,
-            5 => Self::XOR,
-            6 => Self::OR,
-            7 => Self::CP,
-            _ => unreachable!("all possible values after mask are mapped"),
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::ADD),
+            1 => Ok(Self::ADC),
+            2 => Ok(Self::SUB),
+            3 => Ok(Self::SBC),
+            4 => Ok(Self::AND),
+            5 => Ok(Self::XOR),
+            6 => Ok(Self::OR),
+            7 => Ok(Self::CP),
+            _ => Err(OpcodeExtractionError),
         }
     }
 }
@@ -276,14 +246,16 @@ pub enum BitRotateOperation {
     RR,
 }
 
-impl From<u8> for BitRotateOperation {
-    fn from(value: u8) -> Self {
-        match value & 0b11 {
-            0 => Self::RLC,
-            1 => Self::RRC,
-            2 => Self::RL,
-            3 => Self::RR,
-            _ => unreachable!("all possible values after mask are mapped"),
+impl TryFrom<u8> for BitRotateOperation {
+    type Error = OpcodeExtractionError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::RLC),
+            1 => Ok(Self::RRC),
+            2 => Ok(Self::RL),
+            3 => Ok(Self::RR),
+            _ => Err(OpcodeExtractionError),
         }
     }
 }
@@ -297,15 +269,17 @@ pub enum BitShiftOperation {
     SRL,
 }
 
-impl From<u8> for BitShiftOperation {
-    fn from(value: u8) -> Self {
-        match value & 0b111 {
-            0..=3 => Self::Rotate(BitRotateOperation::from(value)),
-            4 => Self::SLA,
-            5 => Self::SRA,
-            6 => Self::SWAP,
-            7 => Self::SRL,
-            _ => unreachable!("all possible values after mask are mapped"),
+impl TryFrom<u8> for BitShiftOperation {
+    type Error = OpcodeExtractionError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0..=3 => Ok(Self::Rotate(BitRotateOperation::try_from(value)?)),
+            4 => Ok(Self::SLA),
+            5 => Ok(Self::SRA),
+            6 => Ok(Self::SWAP),
+            7 => Ok(Self::SRL),
+            _ => Err(OpcodeExtractionError),
         }
     }
 }

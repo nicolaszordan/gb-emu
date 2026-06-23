@@ -1,4 +1,3 @@
-use super::OpcodeExtractionError;
 use crate::cpu::registers::Flags;
 
 /// Conditions for conditional instructions.
@@ -68,51 +67,6 @@ impl Condition {
     }
 }
 
-impl TryFrom<u8> for Condition {
-    type Error = OpcodeExtractionError;
-
-    /// Try to build a [`Condition`] from the given [`u8`] value, returns [`OpcodeExtractionError`]
-    /// if the given value is invalid.
-    ///
-    /// This function expects values to be in the range [0..=3].
-    ///
-    /// Values are mapped as follows:
-    /// - 0 => [`Condition::NZ`]
-    /// - 1 => [`Condition::Z`]
-    /// - 2 => [`Condition::NC`]
-    /// - 3 => [`Condition::C`]
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// let op_jr_nz_nn = 0x20; // opcode for JR NZ, nn
-    /// let op_jr_z_nn = 0x28;  // opcode for JR Z,  nn
-    /// let op_jr_nc_nn = 0x30; // opcode for JR NC, nn
-    /// let op_jr_c_nn = 0x38;  // opcode for JR C,  nn
-    ///
-    /// // The condition is encoded in bits 3 and 4 of the opcode, so we shift
-    /// // right by 3 to get the value for the condition and mask it
-    /// let cond_nz = Condition::try_from((op_jr_nz_nn >> 3) & 0b11).unwrap();
-    /// let cond_z = Condition::try_from((op_jr_z_nn >> 3) & 0b11).unwrap();
-    /// let cond_nc = Condition::try_from((op_jr_nc_nn >> 3) & 0b11).unwrap();
-    /// let cond_c = Condition::try_from((op_jr_c_nn >> 3) & 0b11).unwrap();
-    ///
-    /// assert!(matches!(cond_nz, Condition::NZ));
-    /// assert!(matches!(cond_z, Condition::Z));
-    /// assert!(matches!(cond_nc, Condition::NC));
-    /// assert!(matches!(cond_c, Condition::C));
-    /// ```
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(Self::NZ),
-            1 => Ok(Self::Z),
-            2 => Ok(Self::NC),
-            3 => Ok(Self::C),
-            _ => Err(OpcodeExtractionError),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -153,25 +107,5 @@ mod tests {
         assert!(!Condition::Z.check(flags));
         assert!(Condition::NC.check(flags));
         assert!(!Condition::C.check(flags));
-    }
-
-    #[test]
-    fn try_from() {
-        let op_jr_nz_nn = 0x20; // opcode for JR NZ, nn
-        let op_jr_z_nn = 0x28; // opcode for JR Z,  nn
-        let op_jr_nc_nn = 0x30; // opcode for JR NC, nn
-        let op_jr_c_nn = 0x38; // opcode for JR C,  nn
-
-        // The condition is encoded in bits 3 and 4 of the opcode, so we shift
-        // right by 3 to get the value for the condition
-        let cond_nz = Condition::try_from((op_jr_nz_nn >> 3) & 0b11).unwrap();
-        let cond_z = Condition::try_from((op_jr_z_nn >> 3) & 0b11).unwrap();
-        let cond_nc = Condition::try_from((op_jr_nc_nn >> 3) & 0b11).unwrap();
-        let cond_c = Condition::try_from((op_jr_c_nn >> 3) & 0b11).unwrap();
-
-        assert!(matches!(cond_nz, Condition::NZ));
-        assert!(matches!(cond_z, Condition::Z));
-        assert!(matches!(cond_nc, Condition::NC));
-        assert!(matches!(cond_c, Condition::C));
     }
 }
