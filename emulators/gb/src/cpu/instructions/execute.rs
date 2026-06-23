@@ -679,7 +679,7 @@ impl CPU {
     ///
     /// ```
     pub(crate) fn instr_prefix<M: MemoryBus>(&mut self, bus: &mut M) -> TCycles {
-        let opcode = self.fetch_byte(bus);
+        let opcode = self.fetch_next_opcode(bus);
         self.execute_extended_instruction(bus, opcode)
     }
 
