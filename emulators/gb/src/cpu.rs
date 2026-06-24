@@ -43,7 +43,10 @@ pub struct CPU {
 }
 
 impl CPU {
-    pub(crate) fn new() -> Self {
+    /// Create a new [`CPU`] with all fields set to `0`.
+    ///
+    /// [`CPU::ime`] is set to [`IME::Disabled`] and [`CPU::state`] is set to [`CPUState::Running`].
+    pub(crate) const fn new() -> Self {
         Self {
             registers: Registers::new(),
             sp: 0x00,

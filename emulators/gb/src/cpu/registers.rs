@@ -44,8 +44,17 @@ impl Registers {
     /// assert_eq!(regs.a, 0x00);
     /// assert!(!regs.flags.z);
     /// ```
-    pub fn new() -> Self {
-        Self::default()
+    pub const fn new() -> Self {
+        Self {
+            a: 0,
+            flags: Flags::new(),
+            b: 0,
+            c: 0,
+            d: 0,
+            e: 0,
+            h: 0,
+            l: 0,
+        }
     }
 
     /// Returns the value stored in the 16-bit register pair `BC`.
@@ -277,8 +286,14 @@ pub struct Flags {
 }
 
 impl Flags {
-    pub fn new() -> Self {
-        Self::default()
+    /// Create a new [`Flags`] register with all flags set to `false`.
+    pub const fn new() -> Self {
+        Self {
+            z: false,
+            n: false,
+            h: false,
+            c: false,
+        }
     }
 }
 
