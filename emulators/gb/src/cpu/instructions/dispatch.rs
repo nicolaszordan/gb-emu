@@ -8,7 +8,6 @@ use super::condition::Condition;
 #[allow(clippy::wildcard_imports)] // we need and use all the params
 use super::parameter::*;
 
-use bitvec::field::BitField;
 use emu::MemoryBus;
 
 impl CPU {
@@ -119,23 +118,16 @@ impl CPU {
             // NOTE: 0x76 halt needs to be before this block as it is contained in the range 0x40..=0x7F
             0x40..=0x7F => self.instr_ld8(
                 bus,
-                R8Param::try_from(opcode.bits()[3..6].load::<u8>())
-                    .expect("opcode's value should be contained between 0 and 3")
-                    .into(),
-                R8Param::try_from(opcode.bits()[..3].load::<u8>())
-                    .expect("opcode's value should be contained between 0 and 3")
-                    .into(),
+                R8Param::from_low_bits(opcode.value() >> 3).into(), // dst r8 param is encoded in bits 5-3
+                R8Param::from_low_bits(opcode.value()).into(),
             ),
 
             // ALU OP R8
             // NOTE: pretty big block (64instr): should we split this block like we did the others?
             0x80..=0xBF => self.instr_alu(
                 bus,
-                ALUOperation::try_from(opcode.bits()[3..6].load::<u8>())
-                    .expect("opcode's value should be contained between 0 and 3"),
-                R8Param::try_from(opcode.bits()[..3].load::<u8>())
-                    .expect("opcode's value should be contained between 0 and 3")
-                    .into(),
+                ALUOperation::from_low_bits(opcode.value() >> 3), // alu operation is encoded in bits 5-3
+                R8Param::from_low_bits(opcode.value()).into(),
             ),
 
             // RET COND?
@@ -174,8 +166,7 @@ impl CPU {
             // ALU OP N8
             0xC6 | 0xCE | 0xD6 | 0xDE | 0xE6 | 0xEE | 0xF6 | 0xFE => self.instr_alu(
                 bus,
-                ALUOperation::try_from(opcode.bits()[3..6].load::<u8>())
-                    .expect("opcode's value should be contained between 0 and 3"),
+                ALUOperation::from_low_bits(opcode.value() >> 3), // alu operation is encoded in bits 5-3
                 ALU8Param::N8,
             ),
 
@@ -228,31 +219,26 @@ impl CPU {
         match opcode.value() {
             0x00..=0x3F => self.instr_ext_bit_shift(
                 mem_bus,
-                BitShiftOperation::try_from(opcode.bits()[3..6].load::<u8>())
-                    .expect("opcode's value should be contained between 0 and 3"),
-                R8Param::try_from(opcode.bits()[0..3].load::<u8>())
-                    .expect("opcode's value should be contained between 0 and 3"),
+                BitShiftOperation::from_low_bits(opcode.value() >> 3),
+                R8Param::from_low_bits(opcode.value()),
             ),
 
             0x40..=0x7F => self.instr_ext_bit(
                 mem_bus,
-                BitIndex::from_low_bits(opcode.bits()[3..6].load::<u8>()),
-                R8Param::try_from(opcode.bits()[0..3].load::<u8>())
-                    .expect("opcode's value should be contained between 0 and 3"),
+                BitIndex::from_low_bits(opcode.value() >> 3),
+                R8Param::from_low_bits(opcode.value()),
             ),
 
             0x80..=0xBF => self.instr_ext_res(
                 mem_bus,
-                BitIndex::from_low_bits(opcode.bits()[3..6].load::<u8>()),
-                R8Param::try_from(opcode.bits()[0..3].load::<u8>())
-                    .expect("opcode's value should be contained between 0 and 3"),
+                BitIndex::from_low_bits(opcode.value() >> 3),
+                R8Param::from_low_bits(opcode.value()),
             ),
 
             0xC0..=0xFF => self.instr_ext_set(
                 mem_bus,
-                BitIndex::from_low_bits(opcode.bits()[3..6].load::<u8>()),
-                R8Param::try_from(opcode.bits()[0..3].load::<u8>())
-                    .expect("opcode's value should be contained between 0 and 3"),
+                BitIndex::from_low_bits(opcode.value() >> 3),
+                R8Param::from_low_bits(opcode.value()),
             ),
         };
 

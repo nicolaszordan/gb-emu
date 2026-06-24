@@ -6,7 +6,6 @@ edition = "2024"
 [dependencies]
 emu = { path = "../emu" }
 bitflags = "2.11"
-bitvec = "1.1.1"
 
 [dev-dependencies]
 emu = { path = "../emu", features = ["test-utilities"] }

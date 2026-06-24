@@ -17,6 +17,3 @@ pub mod parameter;
 
 pub mod opcode;
 pub use opcode::Opcode;
-
-#[derive(Debug)]
-pub struct OpcodeExtractionError; // NOTE: not convinced if this should stay here or move to somewhere else
