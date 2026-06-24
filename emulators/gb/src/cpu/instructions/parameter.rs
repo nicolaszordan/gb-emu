@@ -1,3 +1,5 @@
+pub use emu::BitIndex;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum R8Param {
     /// Designate a parameter using CPU's `B` register
@@ -26,11 +28,8 @@ pub enum R8Param {
     A,
 }
 
-impl From<u8> for R8Param {
-    /// Create a [`R8Param`] from an [`u8`].
-    ///
-    /// Only the last 3 bits from `value` are checked and therefore the values
-    /// go from 0 to 7.
+impl R8Param {
+    /// Create an [`R8Param`] based on the lower **3** bits of `value`.
     ///
     /// Mapping is as follow:
     /// - `0` => [`R8Param::B`]
@@ -41,7 +40,7 @@ impl From<u8> for R8Param {
     /// - `5` => [`R8Param::L`]
     /// - `6` => [`R8Param::IndHL`]
     /// - `7` => [`R8Param::A`]
-    fn from(value: u8) -> Self {
+    pub const fn from_low_bits(value: u8) -> Self {
         match value & 0b111 {
             0 => Self::B,
             1 => Self::C,
@@ -51,7 +50,7 @@ impl From<u8> for R8Param {
             5 => Self::L,
             6 => Self::IndHL,
             7 => Self::A,
-            _ => unreachable!("all values after mask are mapped"),
+            _ => unreachable!(), // all possible values are mapped
         }
     }
 }
@@ -64,36 +63,12 @@ pub enum R16Param {
     SP,
 }
 
-impl From<u8> for R16Param {
-    fn from(value: u8) -> Self {
-        match value & 0b11 {
-            0 => Self::BC,
-            1 => Self::DE,
-            2 => Self::HL,
-            3 => Self::SP,
-            _ => unreachable!("all values after mask are mapped"),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum R16StackParam {
     BC,
     DE,
     HL,
     AF,
-}
-
-impl From<u8> for R16StackParam {
-    fn from(value: u8) -> Self {
-        match value & 0b11 {
-            0 => Self::BC,
-            1 => Self::DE,
-            2 => Self::HL,
-            3 => Self::AF,
-            _ => unreachable!("all values after mask are mapped"),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -103,20 +78,6 @@ pub enum R16MemParam {
     IndHLi,
     IndHLd,
 }
-
-impl From<u8> for R16MemParam {
-    fn from(value: u8) -> Self {
-        match value & 0b11 {
-            0 => Self::IndBC,
-            1 => Self::IndDE,
-            2 => Self::IndHLi,
-            3 => Self::IndHLd,
-            _ => unreachable!("all values after mask are mapped"),
-        }
-    }
-}
-
-pub use emu::BitIndex;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LD8SrcParam {
@@ -237,11 +198,8 @@ pub enum ALUOperation {
     CP,
 }
 
-impl From<u8> for ALUOperation {
-    /// Create an [`ALUOperation`] from an [`u8`]
-    ///
-    /// ALU main instructions calls can be deduced from the opcode and are
-    /// called in the following order {add, adc, sub, sbc, and, xor, or, cp}
+impl ALUOperation {
+    /// Create an [`ALUOperation`] from the lower **3** bits of `value`.
     ///
     /// Value mapping is as follow:
     /// - `0` => [`ALUOperation::ADD`]
@@ -252,8 +210,7 @@ impl From<u8> for ALUOperation {
     /// - `5` => [`ALUOperation::XOR`]
     /// - `6` => [`ALUOperation::OR`]
     /// - `7` => [`ALUOperation::CP`]
-    ///
-    fn from(value: u8) -> Self {
+    pub const fn from_low_bits(value: u8) -> Self {
         match value & 0b111 {
             0 => Self::ADD,
             1 => Self::ADC,
@@ -263,7 +220,7 @@ impl From<u8> for ALUOperation {
             5 => Self::XOR,
             6 => Self::OR,
             7 => Self::CP,
-            _ => unreachable!("all possible values after mask are mapped"),
+            _ => unreachable!(),
         }
     }
 }
@@ -276,14 +233,21 @@ pub enum BitRotateOperation {
     RR,
 }
 
-impl From<u8> for BitRotateOperation {
-    fn from(value: u8) -> Self {
+impl BitRotateOperation {
+    /// Create a [`BitRotateOperation`] from the lower **2** bits of `value`.
+    ///
+    /// Value mapping is as follow:
+    /// - `0` => [`BitRotateOperation::RLC`]
+    /// - `1` => [`BitRotateOperation::RRC`]
+    /// - `2` => [`BitRotateOperation::RL`]
+    /// - `3` => [`BitRotateOperation::RR`]
+    pub const fn from_low_bits(value: u8) -> Self {
         match value & 0b11 {
             0 => Self::RLC,
             1 => Self::RRC,
             2 => Self::RL,
             3 => Self::RR,
-            _ => unreachable!("all possible values after mask are mapped"),
+            _ => unreachable!(),
         }
     }
 }
@@ -297,15 +261,26 @@ pub enum BitShiftOperation {
     SRL,
 }
 
-impl From<u8> for BitShiftOperation {
-    fn from(value: u8) -> Self {
+impl BitShiftOperation {
+    /// Create a [`BitShiftOperation`] from the lower **3** bits of `value`.
+    ///
+    /// Value mapping is as follow:
+    /// - `0` => [`BitRotateOperation::RLC`]
+    /// - `1` => [`BitRotateOperation::RRC`]
+    /// - `2` => [`BitRotateOperation::RL`]
+    /// - `3` => [`BitRotateOperation::RR`]
+    /// - `4` => [`BitShiftOperation::SLA`]
+    /// - `5` => [`BitShiftOperation::SRA`]
+    /// - `6` => [`BitShiftOperation::SWAP`]
+    /// - `7` => [`BitShiftOperation::SRL`]
+    pub const fn from_low_bits(value: u8) -> Self {
         match value & 0b111 {
-            0..=3 => Self::Rotate(BitRotateOperation::from(value)),
+            0..=3 => Self::Rotate(BitRotateOperation::from_low_bits(value)),
             4 => Self::SLA,
             5 => Self::SRA,
             6 => Self::SWAP,
             7 => Self::SRL,
-            _ => unreachable!("all possible values after mask are mapped"),
+            _ => unreachable!(),
         }
     }
 }

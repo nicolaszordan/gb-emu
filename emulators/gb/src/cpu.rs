@@ -9,6 +9,7 @@ use emu::MemoryBus;
 
 use crate::cycles::TCycles;
 use crate::interrupts::{Interrupt, InterruptBus};
+use instructions::Opcode;
 use interrupts::{IME, INTERRUPT_DISPATCH_CYCLES, InterruptJumpVector};
 use registers::Registers;
 use stack::StackController;
@@ -167,13 +168,15 @@ impl CPU {
     /// However, if the CPU is in the `HaltBug` state, this will read the byte
     /// at the current `pc` without incrementing `pc`, and then transition the
     /// CPU back into the `Running` state.
-    fn fetch_next_opcode<B: MemoryBus>(&mut self, bus: &B) -> u8 {
-        if self.state.is_halt_bug() {
+    fn fetch_next_opcode<B: MemoryBus>(&mut self, bus: &B) -> Opcode {
+        let opcode = if self.state.is_halt_bug() {
             self.state.wake();
             bus.read(self.pc)
         } else {
             self.fetch_byte(bus)
-        }
+        };
+
+        Opcode::new(opcode)
     }
 
     /// Read the current byte at `pc` and increment `pc` to the next byte.
@@ -835,12 +838,12 @@ mod tests {
             cpu.state = CPUState::HaltBug;
 
             let opcode1 = cpu.fetch_next_opcode(&bus);
-            assert_eq!(opcode1, 0x12);
+            assert_eq!(opcode1, 0x12.into());
             assert_eq!(cpu.pc, 0x0000); // PC should not have incremented due to halt bug
             assert_eq!(cpu.state, CPUState::Running); // CPU should have woken up from halt bug state
 
             let opcode2 = cpu.fetch_next_opcode(&bus);
-            assert_eq!(opcode2, 0x12); // should fetch the same opcode again due to halt bug
+            assert_eq!(opcode2, 0x12.into()); // should fetch the same opcode again due to halt bug
             assert_eq!(cpu.pc, 0x0001); // PC should still not have incremented
         }
 
@@ -856,11 +859,11 @@ mod tests {
             cpu.state = CPUState::Running;
 
             let opcode1 = cpu.fetch_next_opcode(&bus);
-            assert_eq!(opcode1, 0x12);
+            assert_eq!(opcode1, 0x12.into());
             assert_eq!(cpu.pc, 0x0001); // PC should have incremented
 
             let opcode2 = cpu.fetch_next_opcode(&bus);
-            assert_eq!(opcode2, 0x34);
+            assert_eq!(opcode2, 0x34.into());
             assert_eq!(cpu.pc, 0x0002); // PC should have incremented again
         }
 
