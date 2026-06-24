@@ -1,5 +1,5 @@
 use crate::cpu::CPU;
-use crate::cpu::alu;
+use crate::cpu::instructions::alu;
 
 use crate::cycles::TCycles;
 

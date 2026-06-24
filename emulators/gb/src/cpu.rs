@@ -1,4 +1,3 @@
-mod alu;
 mod instructions;
 mod interrupts;
 mod registers;
